@@ -1,0 +1,12 @@
+body {
+    padding-top: 4rem;
+    padding-bottom: 3rem;
+    background-image: url('../images/pattern.png');
+    background-repeat: repeat;
+  }
+  .bg-primary{
+    background-color: #bcd4cc !important;
+  }
+  .accordion-button{
+    background-color: #bcd4cc !important;
+  }
