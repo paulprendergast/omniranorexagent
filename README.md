@@ -1,2 +1,2 @@
 # omniranorexagent
-controls ranorex standalone agent
+controls ranorex standalone binaries
