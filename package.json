@@ -6,25 +6,29 @@
   "scripts": {
     "_comment1": "for windows in start script add & between node app, like node & app",
     "_comment2": "DEBUG=app node app.js will not use nodemon",
-    "start": "DEBUG=app nodemon app.js",
-    "debug": "DEBUG=* nodemon app.js",
+    "start": "cross-env node app.js",
+    "start-dev": "cross-env DEBUG=app nodemon app.js",
+    "start-prod": "cross-env nodemon app.js",
+    "debug": "cross-env DEBUG=* nodemon app.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
     "chalk": "^4.1.1",
+    "config": "^3.3.9",
     "debug": "^4.3.4",
     "ejs": "^3.1.9",
     "express": "^4.18.2",
     "morgan": "^1.10.0",
-    "nodemon": "^3.0.1"
+    "nodemon": "^3.0.1",
+    "winston": "^3.11.0"
   },
   "nodemonConfig": {
     "restartable": "rs",
-    "delay": 2500,
-    "env": {
-      "PORT": 4000
-    }
+    "delay": 2500
+  },
+  "devDependencies": {
+    "cross-env": "^7.0.3"
   }
 }
