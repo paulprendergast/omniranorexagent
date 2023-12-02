@@ -43,5 +43,5 @@ app.get('/', (req, res) => {
 });
 
 app.listen(PORT, () => {
-    logger.info(`Listening on port2: ${PORT}`);
+    logger.info(`Listening on port: ${PORT}`);
 });
