@@ -21,30 +21,34 @@
                 class="d-inline-block align-top"
                 alt="Omni Logo"
               />
-              Omni Ranorex Agent: <strong>10.116.111.12< /strong>
+              Omni Ranorex Agent: <strong>10.116.111.12</strong>
             </a>
           </div>
         </nav>
       </header>
       <main role="main">
         <div class="container">
-            <div class="accordion" id="accordionExample">               
-                <div class="accordion-item">
+            <div class="accordion" id="accordionIndexPage">               
+                <div class="accordion-item">    
+                  <%for(let i=0; i< responseJobs.length; i++){ 
+                    let testGroup = responseJobs[i].testGroup;
+                    let collapseName = 'collapse' + i;
+                    %>              
                     <h2 class="accordion-header">
-                      <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseTwo" aria-expanded="true" aria-controls="collapseTwo">
+                      <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#<%=collapseName%>" aria-expanded="true" aria-controls="<%=collapseName%>">
                           <div class="container text-center">
                               <div class="row align-items-start">
                                 <div class="col">
-                                  Test Job: <strong>Job8786786</strong>
+                                  Test Job: <strong><%=responseJobs[i].jobId %></strong>  
                                 </div>
                                 <div class="col">
-                                  Job Status: <strong>Running</strong>
+                                  Job Status: <strong><%=responseJobs[i].status %></strong>
                                 </div>
                               </div>
                             </div>                      
                       </button>
                     </h2>
-                    <div id="collapseTwo" class="accordion-collapse collapse" data-bs-parent="#accordionExample">
+                    <div id="<%=collapseName%>" class="accordion-collapse collapse" data-bs-parent="#accordionIndexPage">
                       <div class="accordion-body">
                           <div class="container text-center">
                               <div class="row">
@@ -58,17 +62,20 @@
                                       <strong>Test Result</strong>
                                     </div>
                               </div>
+                              <%for(let j=0;j< testGroup.length; j++){%>
                               <div class="row">
                                   <div class="col">
-                                      123456
+                                      <%=testGroup[j].testId%>
                                     </div>
                                     <div class="col">
-                                      Finished
+                                      <%=testGroup[j].workStatus%>
                                     </div>
                                     <div class="col">
-                                      Passed
+                                      <%=testGroup[j].status%>
                                     </div>
                               </div>
+                              <%}%>
+                              <!--
                               <div class="row">
                                   <div class="col">
                                       222222
@@ -102,10 +109,13 @@
                                       Nothing
                                     </div>
                               </div>
+                              -->
                             </div>
                       </div>
                     </div>
+                  <%}%>
                 </div>
+                <!--
                 <div class="accordion-item">
                     <h2 class="accordion-header">
                       <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseThree" aria-expanded="true" aria-controls="collapseThree">
@@ -414,6 +424,7 @@
                       </div>
                     </div>
                 </div>
+                -->
                 
             </div>
         </div>

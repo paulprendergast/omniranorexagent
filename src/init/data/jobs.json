@@ -1,0 +1,91 @@
+[
+    {
+        "jobId":"16139755-83f6-4f0e-9f5b-d6c9b1789b99",
+        "parentJobId": "593712f9-d221-4ba7-b96b-955f64f1c553",
+        "jobType": "Test",
+        "machineName":"LTAWSDIST193176",
+        "agentIp":"10.116.222.1",
+        "init_date": "2023-12-03T01:00:00.000+00:00",
+        "trans_date": "2023-12-03T06:00:00.000+00:00",
+        "status": "Finished",
+        "agentData": {
+            "testSuiteType": "OCCTDist",
+            "simulatorConfig":"AWS",
+            "simulatorPath":"c:\\Program Files (x86)\\OETS\\",
+            "omnicenterIp":"10.6.198.201",
+            "ctip":"10.6.196.88"
+        },
+        "testGroup": [
+            {
+                "testId":"TC12345",
+                "start_date": "2023-12-03T01:00:00.000+00:00",
+                "finished_date": "2023-12-03T06:00:00.000+00:00",
+                "workStatus": "Finished",
+                "status": "Pass"
+            },
+            {
+                "testId":"TC67890",
+                "start_date": "2023-12-03T01:00:00.000+00:00",
+                "finished_date": "2023-12-03T06:00:00.000+00:00",
+                "workStatus": "Finished",
+                "status": "Pass"
+            },
+            {
+                "testId":"TC13579",
+                "start_date": "2023-12-03T01:00:00.000+00:00",
+                "finished_date": "2023-12-03T06:00:00.000+00:00",
+                "workStatus": "Finished",
+                "status": "Fail"
+            }
+        ]
+    },
+    {
+        "jobId":"16139755-83f6-4f0e-9f5b-f6a9l1787z66",
+        "parentJobId": "593712f9-d221-4ba7-b96b-955f64f1c553",
+        "jobType": "Test",
+        "machineName":"LTAWSDIST193176",
+        "agentIp":"10.116.222.1",
+        "init_date": "2023-12-16T13:00:00.000+00:00",
+        "trans_date": "2023-12-16T15:33:44.000+00:00",
+        "status": "Running",
+        "agentData": {
+            "testSuiteType": "OCCTDist",
+            "simulatorConfig":"AWS",
+            "simulatorPath":"c:\\Program Files (x86)\\OETS\\",
+            "omnicenterIp":"10.6.198.201",
+            "ctip":"10.6.196.88"
+        },
+        "testGroup": [
+            {
+                "testId":"TC16645",
+                "start_date": "2023-12-16T13:01:00.000+00:00",
+                "finished_date": "2023-12-16T14:01:00.000+00:00",
+                "workStatus": "Finished",
+                "status": "Pass"
+            },
+            {
+                "testId":"TC69870",
+                "start_date": "2023-12-16T14:01:22.000+00:00",
+                "finished_date": "2023-12-16T15:22:00.000+00:00",
+                "workStatus": "Finished",
+                "status": "Pass"
+            },
+            {
+                "testId":"TC51379",
+                "start_date": "2023-12-16T15:23:00.000+00:00",
+                "finished_date": "0000-00-00T00:00:00.000+00:00",
+                "workStatus": "Running",
+                "status": "Nothing"
+            },
+            {
+                "testId":"TC97534",
+                "start_date": "0000-00-00T00:00:00.000+00:00",
+                "finished_date": "0000-00-00T00:00:00.000+00:00",
+                "workStatus": "Pending",
+                "status": "Nothing"
+            }
+        ]
+    }
+    
+
+]
