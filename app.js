@@ -9,12 +9,15 @@ const morganMiddleware = require("./src/middleware/morgan.middleware");
 const logger = require("./src/utils/logger");
 const initRouter = require('./routers/initRouter');
 const {MongoClient} = require('mongodb');
+const { default: mongoose } = require('mongoose');
+const {jobSchema } = require('./src/models/job');
+const { exceptions } = require('winston');
+
+
 const dbUrl =  
-    `mongodb+srv://${config.get('dbUserId')}:${config.get('dbUserIdPassword')}@omniranorexagent.ebz0ypr.mongodb.net/?retryWrites=true&w=majority`;
+    `mongodb+srv://${config.get('dbUserId')}:${config.get('dbUserIdPassword')}@omniranorexagent.ebz0ypr.mongodb.net/agent?retryWrites=true&w=majority`;
 
-
-
-const PORT = config.get("AppPort") || 4001;
+const PORT = config.get("AppPort") || 4051;
 
 loggerMode = "";
 if (process.env.NODE_ENV === 'development') {
@@ -24,13 +27,7 @@ if (process.env.NODE_ENV === 'development') {
 if (process.env.NODE_ENV === 'production') {
     logger.info(`Log level set: ${config.get("LogLevel")}`);
 }
- 
-
-
 logger.info(`Running in mode: ${process.env.NODE_ENV}`);
-
-
-
 //middleware
 app.use(express.static(path.join(__dirname, '/src/')));
 //app.use(morgan('tiny'));
@@ -44,24 +41,43 @@ app.set('view engine', 'ejs');
 app.use('/init', initRouter);
 app.get('/', (req, res) => {
     logger.info("Checking the API status: Everything is OK");
-    (async function mongo(){
-        let client;
+    
+    (async function firstMongooseGet(){
         try {
-            client = await MongoClient.connect(dbUrl);
-            logger.debug('Connected to the mongo DB');
-            const db = client.db(config.get('dbName'));
-            const responseJobs = await db.collection('jobs').find().toArray();
+
+            logger.debug('Loading All Jobs');
+            
+            const jobModel = mongoose.model('Jobs', jobSchema);
+            const responseJobs = await jobModel.find({}).exec();
             logger.info("test:" + responseJobs[0].testGroup.length);
-            //console.log(responseJobs[0]._id);
-            res.render('index', {responseJobs});
-
+            if (responseJobs instanceof Array) {
+                res.render('index', {responseJobs});
+            } else {
+                const newError = "The responseJobs did not return Array."; 
+                logger.debug(newError);
+                throw new Error(newError); 
+            }
         } catch (error) {
-           logger.debug(error.stack);
+            logger.debug(error.stack);
         }
-        client.close();
-    }());   
+    }());    
 });
 
-app.listen(PORT, () => {
-    logger.info(`Listening on port: ${PORT}`);
-});
+try {
+    mongoose.connect(dbUrl);
+    mongoose.connection.on('error',(error) => logger.error("Mongoose DB connection error: " + error));
+    mongoose.connection.on('open', () => logger.info('Mongoose DB open'));
+    mongoose.connection.on('disconnected', () => logger.info('Mongoose DB disconnected'));
+    mongoose.connection.on('reconnected', () => logger.info('Mongoose DB reconnected'));
+    mongoose.connection.on('disconnecting', () => logger.info('Mongoose DB disconnecting'));
+    mongoose.connection.on('close', () => logger.info('Mongoose DB close'));
+    mongoose.connection.once('open',() => {
+
+        logger.info('Connected to the mongo DB via Mongoose');
+        app.listen(PORT, () => {
+            logger.info(`Listening on port: ${PORT}`);
+        });
+    });
+} catch (error) {
+    logger.debug(`Mongoose DB connect: ${error}`);
+} 

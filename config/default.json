@@ -1,7 +1,7 @@
 {
     "comment": "deployment ENV: 'production' or 'development'",
     "NODE_ENV": "development",
-    "AppPort": 4000,
+    "AppPort": 4050,
     "_comment1": "LogLevel only affects production; error=0, warn=1, info=2, http=3, debug=4",
     "LogLevel": "info",
     "dbUserId":"dbAdmin",
