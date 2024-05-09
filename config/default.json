@@ -5,6 +5,6 @@
     "_comment1": "LogLevel only affects production; error=0, warn=1, info=2, http=3, debug=4",
     "LogLevel": "info",
     "dbUserId":"dbAdmin",
-    "dbUserIdPassword":"JS4lKRGpqBR4MX0j", 
+    "dbUserIdPassword":"UjI4OumE9FlZX1NQ", 
     "dbName": "omniAgents"
 }

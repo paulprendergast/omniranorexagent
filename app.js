@@ -12,6 +12,7 @@ const {MongoClient} = require('mongodb');
 const { default: mongoose } = require('mongoose');
 const {jobSchema } = require('./src/models/job');
 const { exceptions } = require('winston');
+const bodyParser = require('body-parser');
 
 
 const dbUrl =  
@@ -32,6 +33,9 @@ logger.info(`Running in mode: ${process.env.NODE_ENV}`);
 app.use(express.static(path.join(__dirname, '/src/')));
 //app.use(morgan('tiny'));
 app.use(morganMiddleware);
+//app.use(bodyParser); deprecated
+app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
 
 
 app.set('views', path.join(__dirname, 'src', 'views'));
@@ -44,23 +48,23 @@ app.get('/', (req, res) => {
     
     (async function firstMongooseGet(){
         try {
-
+6
             logger.debug('Loading All Jobs');
             
             const jobModel = mongoose.model('Jobs', jobSchema);
-            const responseJobs = await jobModel.find({}).exec();
-            logger.info("test:" + responseJobs[0].testGroup.length);
+            const responseJobs = await jobModel.find({}).sort({ init_date: 'desc'}).exec();
             if (responseJobs instanceof Array) {
                 res.render('index', {responseJobs});
             } else {
                 const newError = "The responseJobs did not return Array."; 
                 logger.debug(newError);
                 throw new Error(newError); 
-            }
+            }                   
         } catch (error) {
             logger.debug(error.stack);
         }
-    }());    
+    }()).catch( err => { logger.debug(err);});;  
+      
 });
 
 try {

@@ -9,12 +9,15 @@
     "start": "cross-env node app.js",
     "start-dev": "cross-env DEBUG=app,app:* nodemon app.js",
     "start-prod": "cross-env nodemon app.js",
+    "start-test": "cross-env DEBUG=app,app:* node app.js",
+    "cy-open": "cypress open",
     "debug": "cross-env DEBUG=* nodemon app.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "body-parser": "^1.20.2",
     "chalk": "^4.1.1",
     "config": "^3.3.9",
     "debug": "^4.3.4",
@@ -31,6 +34,7 @@
     "delay": 2500
   },
   "devDependencies": {
-    "cross-env": "^7.0.3"
+    "cross-env": "^7.0.3",
+    "cypress": "^13.8.1"
   }
 }

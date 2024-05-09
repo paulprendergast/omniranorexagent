@@ -13,7 +13,7 @@
     <header>
         <nav class="navbar navbar-expand-lg navbar-dark fixed-top bg-primary">
           <div class="container">
-            <a class="navbar-brand" href="index.ejs">
+            <a class="navbar-brand" href="index.ejs" data-cy="header-title">
               <img
                 src="../images/pie.png"
                 width="30"
@@ -34,7 +34,7 @@
                     let testGroup = responseJobs[i].testGroup;
                     let collapseName = 'collapse' + i;
                     %>              
-                    <h2 class="accordion-header">
+                    <h2 class="accordion-header" data-cy="accordion-header">
                       <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#<%=collapseName%>" aria-expanded="true" aria-controls="<%=collapseName%>">
                           <div class="container text-center">
                               <div class="row align-items-start">
@@ -51,9 +51,9 @@
                             </div>                      
                       </button>
                     </h2>
-                    <div id="<%=collapseName%>" class="accordion-collapse collapse" data-bs-parent="#accordionIndexPage">
+                    <div id="<%=collapseName%>" class="accordion-collapse collapse" data-cy="test-accordion" data-bs-parent="#accordionIndexPage">
                       <div class="accordion-body">
-                          <div class="container text-center">
+                          <div class="container text-center" data-cy="test-container">
                               <div class="row">
                                   <div class="col">
                                       <strong>TestId</strong>
@@ -67,7 +67,7 @@
                               </div>
                               <%for(let j=0;j< testGroup.length; j++){%>
                               <div class="row">
-                                  <div class="col">
+                                    <div class="col">
                                       <%=testGroup[j].testId%>
                                     </div>
                                     <div class="col">

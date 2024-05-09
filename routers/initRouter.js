@@ -5,8 +5,8 @@ const logger = require("../src/utils/logger");
 const {jobSchema } = require('../src/models/job');
 const { default: mongoose } = require('mongoose');
 
-initRouter.route('/').get((req, res) => {
-
+initRouter.route('/')
+  .get((req, res) => {
     (async function mongooseConnet(){
         try {
             const jobModel = mongoose.model('Jobs', jobSchema);
@@ -66,9 +66,75 @@ initRouter.route('/').get((req, res) => {
            logger.debug(error.stack);
         }
 
-    }());   
-});
+    }()).catch( err => { logger.debug(err);});   
+}).post((req, res) => {
 
+    //res.json('POST is not implemented');
+    //res.json(req.body); //{requestBody: req.body}
+    const body = req.body[0];
+    (async function mongooseConnet(){
+        try {
+            const jobModel = mongoose.model('Jobs', jobSchema);
+ 
+            let objectJobModel = new jobModel();
+            objectJobModel.jobId = new mongoose.Types.ObjectId(body.jobId);//'65eb7fdcfc7ee7c6f99b869d');
+            objectJobModel.parentJobId = new mongoose.Types.ObjectId(body.parentJobId);//'65eb7fdcfc7ee7c6f99b869d');
+            objectJobModel.jobType = body.jobType;
+            objectJobModel.machineName = body.machineName;
+            objectJobModel.agentIp = body.agentIp;
+            objectJobModel.init_date = body.init_date;
+            objectJobModel.trans_date = body.trans_date;
+            objectJobModel.status = body.status;
+            objectJobModel.agentData = {
+                testSuiteType: body.agentData.testSuiteType,
+                simulatorConfig: body.agentData.simulatorConfig,
+                simulatorPath: body.agentData.simulatorPath,
+                omnicenterIp: body.agentData.omnicenterIp,
+                ctip: body.agentData.ctip,
+            };
+
+            for (let i = 0; i < body.testGroup.length; i++) {
+                    
+                objectJobModel.testGroup.push(
+                {
+                    testId: body.testGroup[i].testId,
+                    start_date: body.testGroup[i].start_date,
+                    finished_date: body.testGroup[i].finished_date,
+                    workStatus: body.testGroup[i].workStatus,
+                    status: body.testGroup[i].status
+                });  
+            }
+
+            await objectJobModel.save()
+                .then((result) => {
+                    logger.info('Data Inserted');
+                    logger.debug(result);
+                    res.json(result);
+                }).catch((err) =>{
+                    logger.debug(err);
+                    res.json(err);
+                });
+        } catch (error) {
+           logger.debug(error.stack);
+        }
+
+    }()).catch( err => { logger.debug(err);});  
+}).delete((req, res) => {
+    (async () => {
+        const jobModel = mongoose.model('Jobs', jobSchema);
+        await jobModel.deleteMany({})
+            .then(result => {
+                logger.info('Deleted all Data in Job table');
+                logger.debug(result);
+                res.json(result);
+            })
+            .catch((err) => {
+                logger.debug(err);
+                res.json(err);
+            });
+    })().catch( err => { logger.debug(err);});
+    
+});
 
 
 module.exports = initRouter;
