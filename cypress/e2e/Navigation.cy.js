@@ -22,13 +22,11 @@ describe('Navigation to Apis', () => {
     });
 
     it('Perform Init DELETE and validate root page', () => {
-        cy.request('DELETE','/init');
         cy.visit('/');
         cy.getBySel('accordion-header').should('not.exist');
     });
 
     it('Perform Init multiple GETs and validate root page', () => {
-        cy.request('DELETE','/init');
         cy.request('/init');       
         cy.visit('/');
         cy.getBySel('accordion-header').should('exist');
@@ -39,7 +37,6 @@ describe('Navigation to Apis', () => {
     });
 
     it('Perform Init GET and validate children tests exist', () => {
-        cy.request('DELETE','/init');
         cy.request('/init');       
         cy.visit('/');
         cy.contains('div', 'Test Job:').should('be.visible').click();
@@ -48,8 +45,7 @@ describe('Navigation to Apis', () => {
         cy.getBySel('test-container').children().should('not.have.length', 5);
     });
 
-    it('Perform Init POST', () => {
-      cy.request('DELETE','/init');      
+    it('Perform Init POST', () => {    
       cy.fixture('job').then((json) => {
         let newJob = json;       
         newJob[0].status = 'Not Started';        
@@ -63,8 +59,7 @@ describe('Navigation to Apis', () => {
       cy.getBySel('test-container').children().should('not.have.length', 5);
     });
 
-    it('Visit to root Sorting', () => {
-      cy.request('DELETE','/init');     
+    it('Visit to root Sorting', () => {    
       cy.fixture('job').then((json) => {
         let newJob3 = json;        
         newJob3[0].status = 'Not Started3';        
