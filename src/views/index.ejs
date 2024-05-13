@@ -30,8 +30,8 @@
         <div class="container">
             <div class="accordion" id="accordionIndexPage">               
                 <div class="accordion-item">    
-                  <%for(let i=0; i< responseJobs.length; i++){ 
-                    let testGroup = responseJobs[i].testGroup;
+                  <%for(let i=0; i< newFilterJobs.length; i++){ 
+                    let testGroup = newFilterJobs[i].testGroup;
                     let collapseName = 'collapse' + i;
                     %>              
                     <h2 class="accordion-header" data-cy="accordion-header">
@@ -39,13 +39,13 @@
                           <div class="container text-center">
                               <div class="row align-items-start">
                                 <div class="col">
-                                  Test Job: <strong><%=responseJobs[i].jobId %></strong>  
+                                  Test Job: <strong><%=newFilterJobs[i].jobId %></strong>  
                                 </div>
                                 <div class="col">
-                                  Job Status: <strong><%=responseJobs[i].status %></strong>
+                                  Job Status: <strong><%=newFilterJobs[i].status %></strong>
                                 </div>
                                 <div class="col">
-                                  Date: <strong><%=responseJobs[i].trans_date.toGMTString() %></strong>
+                                  Date: <strong><%=newFilterJobs[i].trans_date.toGMTString() %></strong>
                                 </div>
                               </div>
                             </div>                      

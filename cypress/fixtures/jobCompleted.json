@@ -18,7 +18,7 @@
         "testmode": {
             "enabled": "false",
             "simulate": "false"
-        },
+        }, 
         "testGroup": [
             {
                 "testId":"TC12345",

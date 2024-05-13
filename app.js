@@ -13,12 +13,17 @@ const { default: mongoose } = require('mongoose');
 const {jobSchema } = require('./src/models/job');
 const { exceptions } = require('winston');
 const bodyParser = require('body-parser');
+const processRoute = require('./src/utils/process.route');
+const utilities = require('./src/utils/utilities');
+const _ = require('lodash');
+const processStates = require('./src/states/process.states');
 
 
 const dbUrl =  
     `mongodb+srv://${config.get('dbUserId')}:${config.get('dbUserIdPassword')}@omniranorexagent.ebz0ypr.mongodb.net/agent?retryWrites=true&w=majority`;
 
 const PORT = config.get("AppPort") || 4051;
+let responseJobs="";
 
 loggerMode = "";
 if (process.env.NODE_ENV === 'development') {
@@ -45,16 +50,16 @@ app.set('view engine', 'ejs');
 app.use('/init', initRouter);
 app.get('/', (req, res) => {
     logger.info("Checking the API status: Everything is OK");
-    
+    let newFilterJobs = [];
     (async function firstMongooseGet(){
         try {
-6
-            logger.debug('Loading All Jobs');
-            
+            logger.debug('Loading All Jobs');           
             const jobModel = mongoose.model('Jobs', jobSchema);
-            const responseJobs = await jobModel.find({}).sort({ init_date: 'desc'}).exec();
+            let responseJobs = await jobModel.find({}).sort({ init_date: 'asc'}).exec();
             if (responseJobs instanceof Array) {
-                res.render('index', {responseJobs});
+
+                newFilterJobs = await utilities.filterObject(responseJobs);
+                res.render('index', {newFilterJobs});
             } else {
                 const newError = "The responseJobs did not return Array."; 
                 logger.debug(newError);
@@ -63,7 +68,10 @@ app.get('/', (req, res) => {
         } catch (error) {
             logger.debug(error.stack);
         }
-    }()).catch( err => { logger.debug(err);});;  
+        
+    }()).catch( err => { logger.debug(err);});
+    
+    //processRoute.process(newFilterJobs);
       
 });
 
@@ -85,3 +93,5 @@ try {
 } catch (error) {
     logger.debug(`Mongoose DB connect: ${error}`);
 } 
+
+//processRoute();

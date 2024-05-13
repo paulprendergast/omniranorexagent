@@ -4,6 +4,7 @@ const initRouter = express.Router();
 const logger = require("../src/utils/logger");
 const {jobSchema } = require('../src/models/job');
 const { default: mongoose } = require('mongoose');
+const processStates = require('../src/states/process.states');
 
 initRouter.route('/')
   .get((req, res) => {
@@ -19,13 +20,17 @@ initRouter.route('/')
             objectJobModel.agentIp = '10.116.222.1';
             objectJobModel.init_date = '2023-12-03T01:00:00.000+00:00';
             objectJobModel.trans_date = '2023-12-03T06:00:00.000+00:00';
-            objectJobModel.status = 'Finished';
+            objectJobModel.status = processStates.Completed;
             objectJobModel.agentData = {
                     testSuiteType: 'OCCTDist',
                     simulatorConfig: 'AWS',
                     simulatorPath: 'c:\\Program Files (x86)\\OETS\\',
                     omnicenterIp: '10.6.198.201',
                     ctip: '10.6.196.88',
+                },
+                objectJobModel.testmode = {
+                    enabled: 'False',
+                    simulate: 'False',
                 };
             objectJobModel.testGroup = [
                  {
@@ -55,7 +60,8 @@ initRouter.route('/')
                 .then((result) => {
                     logger.info('Data Inserted');
                     logger.debug(result);
-                    res.json(result);
+                    //res.json(result);
+                    res.redirect(`http://localhost:${config.get("AppPort")}`);
                 }).catch((err) =>{
                     logger.debug(err);
                     res.json(err);
@@ -91,6 +97,10 @@ initRouter.route('/')
                 simulatorPath: body.agentData.simulatorPath,
                 omnicenterIp: body.agentData.omnicenterIp,
                 ctip: body.agentData.ctip,
+            },
+            objectJobModel.testmode = {
+                enabled: body.testmode.enabled,
+                simulate: body.testmode.simulate,
             };
 
             for (let i = 0; i < body.testGroup.length; i++) {
@@ -109,7 +119,8 @@ initRouter.route('/')
                 .then((result) => {
                     logger.info('Data Inserted');
                     logger.debug(result);
-                    res.json(result);
+                    //res.json(result);
+                    res.redirect(`http://localhost:${config.get("AppPort")}`);
                 }).catch((err) =>{
                     logger.debug(err);
                     res.json(err);
@@ -118,7 +129,8 @@ initRouter.route('/')
            logger.debug(error.stack);
         }
 
-    }()).catch( err => { logger.debug(err);});  
+    }()).catch( err => { logger.debug(err);});
+
 }).delete((req, res) => {
     (async () => {
         const jobModel = mongoose.model('Jobs', jobSchema);
@@ -126,7 +138,9 @@ initRouter.route('/')
             .then(result => {
                 logger.info('Deleted all Data in Job table');
                 logger.debug(result);
-                res.json(result);
+                //res.json(result);
+                res.redirect(`http://localhost:${config.get("AppPort")}`);
+
             })
             .catch((err) => {
                 logger.debug(err);

@@ -7,7 +7,7 @@
         "agentIp":"10.116.222.1",
         "init_date": "2023-12-03T01:00:00.000+00:00",
         "trans_date": "2023-12-03T06:00:00.000+00:00",
-        "status": "Finished",
+        "status": "Completed",
         "agentData": {
             "testSuiteType": "OCCTDist",
             "simulatorConfig":"AWS",
@@ -15,6 +15,10 @@
             "omnicenterIp":"10.6.198.201",
             "ctip":"10.6.196.88"
         },
+        "testmode": {
+            "enabled": "false",
+            "simulate": "false"
+        },       
         "testGroup": [
             {
                 "testId":"TC12345",

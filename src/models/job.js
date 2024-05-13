@@ -1,3 +1,4 @@
+const { MongoBatchReExecutionError } = require('mongodb');
 const mongoose = require('mongoose');
 
 const requireObjectIdValidator = [
@@ -57,6 +58,8 @@ const requireTestResultValidator = [
     },
     '{PATH} is not in correct format'
 ];
+
+
 
 const jobSchema = new mongoose.Schema({
     jobId: {
@@ -121,6 +124,18 @@ const jobSchema = new mongoose.Schema({
             validate: requireStringValidator
         },
         ctip: {
+            type: String,
+            require: true,
+            validate: requireStringValidator
+        }
+    }),
+    testmode: new mongoose.Schema({
+        enabled: {
+            type: String,
+            require: true,
+            validate: requireStringValidator
+        },
+        simulate: {
             type: String,
             require: true,
             validate: requireStringValidator
