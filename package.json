@@ -28,6 +28,7 @@
     "mongoose": "^8.1.0",
     "morgan": "^1.10.0",
     "nodemon": "^3.0.1",
+    "threads": "^1.7.0",
     "winston": "^3.11.0"
   },
   "nodemonConfig": {

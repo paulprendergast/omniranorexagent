@@ -16,7 +16,7 @@
             "ctip":"10.6.196.88"
         },
         "testmode": {
-            "enabled": "false",
+            "enabled": "true",
             "simulate": "false"
         },
         "testGroup": [

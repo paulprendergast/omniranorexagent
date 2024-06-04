@@ -29,8 +29,8 @@ initRouter.route('/')
                     ctip: '10.6.196.88',
                 },
                 objectJobModel.testmode = {
-                    enabled: 'False',
-                    simulate: 'False',
+                    enabled: 'true',
+                    simulate: 'false',
                 };
             objectJobModel.testGroup = [
                  {
@@ -133,8 +133,9 @@ initRouter.route('/')
 
 }).delete((req, res) => {
     (async () => {
-        const jobModel = mongoose.model('Jobs', jobSchema);
-        await jobModel.deleteMany({})
+        try {
+            const jobModel = mongoose.model('Jobs', jobSchema);
+            await jobModel.deleteMany({})
             .then(result => {
                 logger.info('Deleted all Data in Job table');
                 logger.debug(result);
@@ -146,8 +147,27 @@ initRouter.route('/')
                 logger.debug(err);
                 res.json(err);
             });
+        } catch (error) {
+            logger.debug(error);
+        }
+        
     })().catch( err => { logger.debug(err);});
     
+}).put((req, res) => {
+    let body = req.body[0];
+
+    (async function mongooseConnet(){
+        try {
+            const jobModel = mongoose.model('Jobs', jobSchema);
+            const castJobId = new mongoose.Types.ObjectId(body._id)
+            const filter = { jobId: castJobId};
+            const update = body;      
+            await jobModel.findByIdAndUpdate(castJobId, update);
+        } catch (error) {
+            logger.debug(error);
+        }
+
+    })().catch( err => { logger.debug(err);});
 });
 
 

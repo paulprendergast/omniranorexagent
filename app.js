@@ -69,14 +69,15 @@ app.get('/', (req, res) => {
             logger.debug(error.stack);
         }
         
-    }()).catch( err => { logger.debug(err);});
-    
-    //processRoute.process(newFilterJobs);
-      
+    }()).catch( err => { 
+        logger.debug(err);});   
 });
 
 try {
-    mongoose.connect(dbUrl);
+    mongoose.connect(dbUrl, {
+        maxPoolSize: 10, 
+        wtimeoutMS: 2500
+    }).catch(error => logger.debug(`Mongoose DB connect: ${error}`));
     mongoose.connection.on('error',(error) => logger.error("Mongoose DB connection error: " + error));
     mongoose.connection.on('open', () => logger.info('Mongoose DB open'));
     mongoose.connection.on('disconnected', () => logger.info('Mongoose DB disconnected'));
@@ -93,5 +94,3 @@ try {
 } catch (error) {
     logger.debug(`Mongoose DB connect: ${error}`);
 } 
-
-//processRoute();

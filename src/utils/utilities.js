@@ -36,4 +36,18 @@ function filterObject(obj) {
     }   
 }; 
 
+async function findAndUpdateJobStatus(jobId, statusValue) {
+
+    try {
+        const jobModel = mongoose.model('Jobs', jobSchema);
+        const filter = { jobId: jobId};
+        const update = { status: statusValue};      
+        return await jobModel.findOneAndUpdate(filter, update, {new: true});
+    } catch (error) {
+        logger.debug(error);
+    }
+}
+
+
 module.exports.filterObject = filterObject;
+module.exports.findAndUpdateJobStatus = findAndUpdateJobStatus;
