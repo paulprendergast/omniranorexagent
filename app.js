@@ -13,7 +13,6 @@ const { default: mongoose } = require('mongoose');
 const {jobSchema } = require('./src/models/job');
 const { exceptions } = require('winston');
 const bodyParser = require('body-parser');
-const processRoute = require('./src/utils/process.route');
 const utilities = require('./src/utils/utilities');
 const _ = require('lodash');
 const processStates = require('./src/states/process.states');

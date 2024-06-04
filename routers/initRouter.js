@@ -61,7 +61,7 @@ initRouter.route('/')
                     logger.info('Data Inserted');
                     logger.debug(result);
                     //res.json(result);
-                    res.redirect(`http://localhost:${config.get("AppPort")}`);
+                    //res.redirect(`http://localhost:${config.get("AppPort")}`);
                 }).catch((err) =>{
                     logger.debug(err);
                     res.json(err);
@@ -120,7 +120,7 @@ initRouter.route('/')
                     logger.info('Data Inserted');
                     logger.debug(result);
                     //res.json(result);
-                    res.redirect(`http://localhost:${config.get("AppPort")}`);
+                    //res.redirect(`http://localhost:${config.get("AppPort")}`);
                 }).catch((err) =>{
                     logger.debug(err);
                     res.json(err);
@@ -140,7 +140,7 @@ initRouter.route('/')
                 logger.info('Deleted all Data in Job table');
                 logger.debug(result);
                 //res.json(result);
-                res.redirect(`http://localhost:${config.get("AppPort")}`);
+                //res.redirect(`http://localhost:${config.get("AppPort")}`);
 
             })
             .catch((err) => {
