@@ -5,17 +5,17 @@ const path = require('path');
 const chalk = require('chalk');
 const debug = require('debug')('app');
 const app = express();
-const morganMiddleware = require("./src/middleware/morgan.middleware");
-const logger = require("./src/utils/logger");
-const initRouter = require('./routers/initRouter');
-const {MongoClient} = require('mongodb');
+const { morganMiddleware } = require("./src/middleware/morgan.middleware.cjs");
+const { logger } = require("./src/utils/logger.cjs");
+const { initRouter } = require('./routers/initRouter.cjs');
+const { MongoClient } = require('mongodb');
 const { default: mongoose } = require('mongoose');
-const {jobSchema } = require('./src/models/job');
+const {jobSchema } = require('./src/models/job.cjs');
 const { exceptions } = require('winston');
 const bodyParser = require('body-parser');
-const utilities = require('./src/utils/utilities');
+const utilities = require('./src/utils/utilities.cjs');
 const _ = require('lodash');
-const processStates = require('./src/states/process.states');
+const {processStates} = require('./src/states/process.states.cjs');
 
 
 const dbUrl =  
@@ -61,22 +61,22 @@ app.get('/', (req, res) => {
                 res.render('index', {newFilterJobs});
             } else {
                 const newError = "The responseJobs did not return Array."; 
-                logger.debug(newError);
+                logger.error(newError);
                 throw new Error(newError); 
             }                   
         } catch (error) {
-            logger.debug(error.stack);
+            logger.error(error.stack);
         }
         
     }()).catch( err => { 
-        logger.debug(err);});   
+        logger.error(err.stack);});   
 });
 
 try {
     mongoose.connect(dbUrl, {
         maxPoolSize: 10, 
-        wtimeoutMS: 2500
-    }).catch(error => logger.debug(`Mongoose DB connect: ${error}`));
+        wtimeoutMS: 2500,
+    }).catch(error => logger.error(`Mongoose DB connect: ${error.stack}`));
     mongoose.connection.on('error',(error) => logger.error("Mongoose DB connection error: " + error));
     mongoose.connection.on('open', () => logger.info('Mongoose DB open'));
     mongoose.connection.on('disconnected', () => logger.info('Mongoose DB disconnected'));
@@ -91,5 +91,6 @@ try {
         });
     });
 } catch (error) {
-    logger.debug(`Mongoose DB connect: ${error}`);
+    logger.error(`Mongoose DB connect: ${error.stack}`);
 } 
+

@@ -1,5 +1,5 @@
 const morgan = require("morgan");
-const logger = require("../utils/logger");
+const {logger} = require("../utils/logger.cjs");
 
 const stream = {
   // Use the http severity
@@ -22,4 +22,4 @@ const morganMiddleware = morgan(
   { stream, skip }
 );
 
-module.exports = morganMiddleware;
+module.exports.morganMiddleware = morganMiddleware;

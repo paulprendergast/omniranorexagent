@@ -1,10 +1,10 @@
 var config = require('config');
 //const express = require('express');
 //const initRouter = express.Router();
-const logger = require("./logger");
-const {jobSchema } = require('../models/job');
+const { logger } = require("./logger.cjs");
+const { jobSchema } = require('../models/job.cjs');
 const { default: mongoose } = require('mongoose');
-const processStates = require('../states/process.states');
+const {processStates} = require('../states/process.states.cjs');
 const _ = require('lodash');
 
 
@@ -32,7 +32,7 @@ function filterObject(obj) {
             }
         });
     } catch (error) {
-        logger.debug(error);
+        logger.error(error.stack);
     }   
 }; 
 
@@ -44,7 +44,7 @@ async function findAndUpdateJobStatus(jobId, statusValue) {
         const update = { status: statusValue};      
         return await jobModel.findOneAndUpdate(filter, update, {new: true});
     } catch (error) {
-        logger.debug(error);
+        logger.error(error.stack);
     }
 }
 

@@ -1,10 +1,11 @@
 var config = require('config');
 const express = require('express');
 const initRouter = express.Router();
-const logger = require("../src/utils/logger");
-const {jobSchema } = require('../src/models/job');
+const {logger} = require("../src/utils/logger.cjs");
+const {jobSchema } = require('../src/models/job.cjs');
 const { default: mongoose } = require('mongoose');
-const processStates = require('../src/states/process.states');
+const {processStates} = require('../src/states/process.states.cjs');
+const { addTestJobToQueue } = require('../src/utils/queues.cjs');
 
 initRouter.route('/')
   .get((req, res) => {
@@ -62,17 +63,18 @@ initRouter.route('/')
                     logger.debug(result);
                     //res.json(result);
                     //res.redirect(`http://localhost:${config.get("AppPort")}`);
+                    res.status(200).end();
                 }).catch((err) =>{
-                    logger.debug(err);
+                    logger.error(err);
                     res.json(err);
                 });
             
 
         } catch (error) {
-           logger.debug(error.stack);
+           logger.error(error.stack);
         }
 
-    }()).catch( err => { logger.debug(err);});   
+    }()).catch( err => { logger.error(err);});   
 }).post((req, res) => {
 
     //res.json('POST is not implemented');
@@ -119,17 +121,21 @@ initRouter.route('/')
                 .then((result) => {
                     logger.info('Data Inserted');
                     logger.debug(result);
+                    res.status(200).end();
+                    
                     //res.json(result);
                     //res.redirect(`http://localhost:${config.get("AppPort")}`);
+                    
                 }).catch((err) =>{
-                    logger.debug(err);
+                    logger.error(err);
                     res.json(err);
                 });
         } catch (error) {
-           logger.debug(error.stack);
+           logger.error(error.stack);
         }
+               
 
-    }()).catch( err => { logger.debug(err);});
+    }()).catch( err => { logger.error(err.stack);});
 
 }).delete((req, res) => {
     (async () => {
@@ -141,17 +147,18 @@ initRouter.route('/')
                 logger.debug(result);
                 //res.json(result);
                 //res.redirect(`http://localhost:${config.get("AppPort")}`);
+                res.status(200).end();
 
             })
             .catch((err) => {
-                logger.debug(err);
+                logger.error(err);
                 res.json(err);
             });
         } catch (error) {
-            logger.debug(error);
+            logger.error(error.stack);
         }
         
-    })().catch( err => { logger.debug(err);});
+    })().catch( err => { logger.error(err.stack);});
     
 }).put((req, res) => {
     let body = req.body[0];
@@ -163,12 +170,13 @@ initRouter.route('/')
             const filter = { jobId: castJobId};
             const update = body;      
             await jobModel.findByIdAndUpdate(castJobId, update);
+            res.status(200).end();
         } catch (error) {
-            logger.debug(error);
+            logger.error(error);
         }
 
-    })().catch( err => { logger.debug(err);});
+    })().catch( err => { logger.error(err.stack);});
 });
 
 
-module.exports = initRouter;
+module.exports.initRouter = initRouter;

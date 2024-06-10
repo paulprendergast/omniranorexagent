@@ -6,4 +6,4 @@
     Paused: 'Paused',
     Stopped: 'Stopped'   
 };
-module.exports = processStates;
+module.exports.processStates = processStates;

@@ -5,20 +5,27 @@
   "main": "app.js",
   "scripts": {
     "_comment1": "for windows in start script add & between node app, like node & app",
-    "_comment2": "DEBUG=app node app.js will not use nodemon",
-    "start": "cross-env node app.js",
-    "start-dev": "cross-env DEBUG=app,app:* nodemon app.js",
-    "start-prod": "cross-env nodemon app.js",
-    "start-test": "cross-env DEBUG=app,app:* node app.js",
+    "_comment2": "DEBUG=app node app.cjs will not use nodemon",
+    "start": "cross-env node app.cjs",
+    "start-dev": " cross-env DEBUG=app,app:* nodemon app.cjs ",
+    "start-prod": "cross-env nodemon app.cjs",
+    "start-test": "cross-env DEBUG=app,app:* node app.cjs",
+    "start-mtest": "concurrently \"npm run start-test\"  \"npm run cy-open\" ",
+    "start-queue": "nodemon ./src/utils/queues.cjs",
+    "start-worker": "nodemon ./src/utils/worker.cjs",
+    "start-mdev": "concurrently \"npm run start-dev\" \"npm run start-queue\" \"npm run start-worker\"",
     "cy-open": "cypress open",
-    "debug": "cross-env DEBUG=* nodemon app.js",
+    "debug": "cross-env DEBUG=* nodemon app.cjs",
     "test": "echo \"Error: no test specified\" && exit 1"
+    
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
     "body-parser": "^1.20.2",
+    "bullmq": "^5.7.14",
     "chalk": "^4.1.1",
+    "concurrently": "^8.2.2",
     "config": "^3.3.9",
     "debug": "^4.3.4",
     "ejs": "^3.1.9",
@@ -27,7 +34,9 @@
     "mongodb": "^6.3.0",
     "mongoose": "^8.1.0",
     "morgan": "^1.10.0",
+    "node-powershell": "^5.0.1",
     "nodemon": "^3.0.1",
+    "rxjs": "^7.8.1",
     "winston": "^3.11.0"
   },
   "nodemonConfig": {
