@@ -28,15 +28,18 @@ const QueueOptions2 = {
 const testJobQueue = new Queue("testJobQueue", { connection: redisOptions });
 const stopJobQueue = new Queue("stopJobQueue", { connection: redisOptions });
 const testTrackerJobQueue = new Queue("testTrackerJobQueue", { connection: redisOptions });
+const jobModel = mongoose.model('Jobs', jobSchema);
 
 
 async function addTestJobToQueue() {
-
-  
   try {
-    const jobModel = mongoose.model('Jobs', jobSchema);
+    logger.info('looking for jobs');
+    
     let responseJobs = jobModel.find({});
-    let foundJobs = await responseJobs.sort({ init_date: 'asc'}).exec();
+    let foundJobs = await responseJobs.sort({ init_date: 'asc'})
+                                      .then(async(jobs) => {
+                                        logger.info('foundjobs');
+                                      });
 
 
     const notStarted = _.filter(foundJobs, {'status': processStates.NotStarted});
@@ -223,11 +226,11 @@ const stopJob = async (job) => {
   });
 };
 
-
-
 setTimeout( () => {
   addTestJobToQueue();
 }, 30000);
+
+
  
 
 

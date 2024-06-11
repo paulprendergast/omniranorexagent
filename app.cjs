@@ -10,12 +10,13 @@ const { logger } = require("./src/utils/logger.cjs");
 const { initRouter } = require('./routers/initRouter.cjs');
 const { MongoClient } = require('mongodb');
 const { default: mongoose } = require('mongoose');
-const {jobSchema } = require('./src/models/job.cjs');
+const { jobSchema } = require('./src/models/job.cjs');
 const { exceptions } = require('winston');
 const bodyParser = require('body-parser');
 const utilities = require('./src/utils/utilities.cjs');
 const _ = require('lodash');
-const {processStates} = require('./src/states/process.states.cjs');
+const { processStates } = require('./src/states/process.states.cjs');
+const { connectionDB } = require('./src/utils/db.cjs');
 
 
 const dbUrl =  
@@ -46,6 +47,7 @@ app.set('views', path.join(__dirname, 'src', 'views'));
 app.set('images', path.join(__dirname, 'src', 'images'));
 app.set('view engine', 'ejs');
 
+//connectionDB();
 app.use('/init', initRouter);
 app.get('/', (req, res) => {
     logger.info("Checking the API status: Everything is OK");
@@ -72,12 +74,7 @@ app.get('/', (req, res) => {
         logger.error(err.stack);});   
 });
 
-try {
-    mongoose.connect(dbUrl, {
-        maxPoolSize: 10, 
-        wtimeoutMS: 2500,
-    }).catch(error => logger.error(`Mongoose DB connect: ${error.stack}`));
-    mongoose.connection.on('error',(error) => logger.error("Mongoose DB connection error: " + error));
+mongoose.connection.on('error',(error) => logger.error("Mongoose DB connection error: " + error));
     mongoose.connection.on('open', () => logger.info('Mongoose DB open'));
     mongoose.connection.on('disconnected', () => logger.info('Mongoose DB disconnected'));
     mongoose.connection.on('reconnected', () => logger.info('Mongoose DB reconnected'));
@@ -90,7 +87,12 @@ try {
             logger.info(`Listening on port: ${PORT}`);
         });
     });
-} catch (error) {
-    logger.error(`Mongoose DB connect: ${error.stack}`);
-} 
+    mongoose.connect(dbUrl, {
+        minPoolSize: 3,
+        maxPoolSize: 10, 
+        family: 4,
+    }).then(() => {
+        logger.info('DB is open');
+    }).catch(err => logger.error(err.stack));
+    
 

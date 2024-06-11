@@ -36,7 +36,7 @@ const psSimulate = () => {
           PATH: process.env.PATH
       }); 
 
-      const file = `\\home\\paulp\\projects\\omniranorexagent\\src\\utils\\scripts\\RanorexSimulateStandalone.ps1`;
+      const file = `.\\omniranorexagent\\src\\utils\\scripts\\RanorexSimulateStandalone.ps1`;
       const timeout = `-timeout 5`;
       const location = `-testlocation .\\logs\\`;
       const tests = `-testArray TC12345,TC67890`;
