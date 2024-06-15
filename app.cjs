@@ -9,7 +9,8 @@ const { morganMiddleware } = require("./src/middleware/morgan.middleware.cjs");
 const { logger } = require("./src/utils/logger.cjs");
 const { initRouter } = require('./routers/initRouter.cjs');
 const { MongoClient } = require('mongodb');
-const { default: mongoose } = require('mongoose');
+//const { default: mongoose } = require('mongoose');
+const db = require('./src/utils/db.cjs');
 const { jobSchema } = require('./src/models/job.cjs');
 const { exceptions } = require('winston');
 const bodyParser = require('body-parser');
@@ -17,6 +18,9 @@ const utilities = require('./src/utils/utilities.cjs');
 const _ = require('lodash');
 const { processStates } = require('./src/states/process.states.cjs');
 const { connectionDB } = require('./src/utils/db.cjs');
+//const { default: mongoose } = require('mongoose');
+const { obliterateJobsQueue } = require('./src/utils/queues.cjs');
+
 
 
 const dbUrl =  
@@ -54,9 +58,22 @@ app.get('/', (req, res) => {
     let newFilterJobs = [];
     (async function firstMongooseGet(){
         try {
-            logger.debug('Loading All Jobs');           
-            const jobModel = mongoose.model('Jobs', jobSchema);
-            let responseJobs = await jobModel.find({}).sort({ init_date: 'asc'}).exec();
+            let responseJobs ='';
+            await db().then(async mongoose => {
+                try {
+                    logger.debug('Loading All Jobs');
+                    const jobModel = mongoose.model('Jobs', jobSchema);
+                    responseJobs = await jobModel.find({}).sort({ init_date: 'asc'}).exec();
+                    
+                }catch (error) {
+                    console.log(error.stack);
+                }finally {
+                    mongoose.connection.close();
+                }
+            }).catch(err =>{ 
+                logger.error(err.stack);
+            });
+
             if (responseJobs instanceof Array) {
 
                 newFilterJobs = await utilities.filterObject(responseJobs);
@@ -65,7 +82,8 @@ app.get('/', (req, res) => {
                 const newError = "The responseJobs did not return Array."; 
                 logger.error(newError);
                 throw new Error(newError); 
-            }                   
+            } 
+            res.status(200).end();             
         } catch (error) {
             logger.error(error.stack);
         }
@@ -74,25 +92,7 @@ app.get('/', (req, res) => {
         logger.error(err.stack);});   
 });
 
-mongoose.connection.on('error',(error) => logger.error("Mongoose DB connection error: " + error));
-    mongoose.connection.on('open', () => logger.info('Mongoose DB open'));
-    mongoose.connection.on('disconnected', () => logger.info('Mongoose DB disconnected'));
-    mongoose.connection.on('reconnected', () => logger.info('Mongoose DB reconnected'));
-    mongoose.connection.on('disconnecting', () => logger.info('Mongoose DB disconnecting'));
-    mongoose.connection.on('close', () => logger.info('Mongoose DB close'));
-    mongoose.connection.once('open',() => {
-
-        logger.info('Connected to the mongo DB via Mongoose');
-        app.listen(PORT, () => {
-            logger.info(`Listening on port: ${PORT}`);
-        });
-    });
-    mongoose.connect(dbUrl, {
-        minPoolSize: 3,
-        maxPoolSize: 10, 
-        family: 4,
-    }).then(() => {
-        logger.info('DB is open');
-    }).catch(err => logger.error(err.stack));
-    
-
+app.listen(PORT, () => {
+    logger.info(`Listening on port: ${PORT}`);
+});
+obliterateJobsQueue();

@@ -5,7 +5,7 @@ const { logger } = require("./logger.cjs");
 const dbUrl =  
     `mongodb+srv://${config.get('dbUserId')}:${config.get('dbUserIdPassword')}@omniranorexagent.ebz0ypr.mongodb.net/agent?retryWrites=true&w=majority`;
 
-const PORT = config.get("AppPort") || 4051;
+//const PORT = config.get("AppPort") || 4051;
 
 module.exports = async () => {
     
@@ -18,16 +18,13 @@ module.exports = async () => {
     mongoose.connection.once('open',() => {
 
         logger.info('Connected to the mongo DB via Mongoose');
-        app.listen(PORT, () => {
-            logger.info(`Listening on port: ${PORT}`);
-        });
     });
 
     await mongoose.connect(dbUrl, {
         maxPoolSize: 10, 
         wtimeoutMS: 2500,
     }).then( x =>{
-        logger.info(``);
+        logger.info(`await mongoose connected!`);
     }).catch(error => {
         logger.error(`Mongoose DB connect: ${error.stack}`);
     });

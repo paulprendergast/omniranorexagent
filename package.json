@@ -13,7 +13,7 @@
     "start-mtest": "concurrently \"npm run start-test\"  \"npm run cy-open\" ",
     "start-queue": "nodemon ./src/utils/queues.cjs",
     "start-worker": "nodemon ./src/utils/worker.cjs",
-    "start-mdev": "concurrently \"npm run start-dev\" \"npm run start-queue\" \"npm run start-worker\"",
+    "start-mdev": "concurrently \"npm run start-dev\" \"npm run start-worker\"",
     "cy-open": "cypress open",
     "debug": "cross-env DEBUG=* nodemon app.cjs",
     "test": "echo \"Error: no test specified\" && exit 1"

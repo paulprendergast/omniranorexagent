@@ -1,14 +1,16 @@
 var config = require('config');
 const { logger } = require("./logger.cjs");
-const { default: mongoose } = require('mongoose');
+//const { default: mongoose } = require('mongoose');
 const _ = require('lodash');
 const { jobSchema } = require('../models/job.cjs');
-const { Queue } = require("bullmq");
+const { Queue, Worker } = require("bullmq");
 const { psGetProcess, psSimulate } = require('./powershellTools.cjs');
-const { timeout } = require("rxjs");
 const { processStates } = require('../states/process.states.cjs');
 const redisOptions = { host: "localhost", port: 6379 };
 const { PowerShell } = require("node-powershell");
+const db = require('./db.cjs');
+//const { Observable, observeOn, asyncScheduler } = require("rxjs");
+
 
 
 const QueueOptions = {
@@ -28,18 +30,33 @@ const QueueOptions2 = {
 const testJobQueue = new Queue("testJobQueue", { connection: redisOptions });
 const stopJobQueue = new Queue("stopJobQueue", { connection: redisOptions });
 const testTrackerJobQueue = new Queue("testTrackerJobQueue", { connection: redisOptions });
-const jobModel = mongoose.model('Jobs', jobSchema);
+
 
 
 async function addTestJobToQueue() {
   try {
     logger.info('looking for jobs');
-    
-    let responseJobs = jobModel.find({});
+    let foundJobs ='';
+    await db().then( async mongoose => {
+      
+      try {
+        const jobModel = mongoose.model('Jobs', jobSchema);
+        let responseJobs = jobModel.find({});
+        foundJobs = await responseJobs.sort({ init_date: 'asc'});
+        
+      }catch (error) {
+          console.log(error.stack);
+      }finally {
+          mongoose.connection.close();
+      }      
+    }).catch(err => {
+      logger.error(err.stack);
+    })        
+    /* let responseJobs = jobModel.find({});
     let foundJobs = await responseJobs.sort({ init_date: 'asc'})
                                       .then(async(jobs) => {
                                         logger.info('foundjobs');
-                                      });
+                                      }); */
 
 
     const notStarted = _.filter(foundJobs, {'status': processStates.NotStarted});
@@ -61,8 +78,10 @@ async function addTestJobToQueue() {
       
       //takes testmode off or testmode enabled and simulate both true
       if (!testmodeEnabled || (testmodeEnabled && testmodeSimulate)) {
-        await testTrackerJobQueue.add(trackJob.name, trackJob, QueueOptions2);
 
+        logger.info('add job to testTrackerJobQueue');
+        await testTrackerJobQueue.add(trackJob.name, trackJob, QueueOptions2);
+        logger.info('add job to testJobQueue');
         await testJobQueue.add(testJob.name, testJob, QueueOptions);
         
       } else { //if testmode enabled = true
@@ -106,19 +125,18 @@ const testJob = async (job) => {
         //trim last character
         testCollection = testCollection.substring(0, testCollection.length - 1);
   
-        /* 
-        const file = `.//ps//RanorexSimulateStandalone.ps1`;
+        
+       /*  const file = `.\\src\\utils\\scripts\\simulate.ps1`;
         const timeout = `-timeout 5`;
-        const location = `-testlocation .\\..\\..\\logs\\`;
-        const tests = `-testArray TC12345,TC67890`;
-        */
+        const location = `-testlocation .\\logs\\`;
+        const tests = `-testArray TC12345,TC67890`; */
+        
         const file = config.get('testmode.fileSimulater');
         const timeout = config.get('testmode.testDurationTime');
         const location = config.get('testmode.outputLocation');
-        const tests = `-testArray ${testCollection}`;
-        await psSimulate();
+        const tests = `-testArray ${testCollection}`; 
+        await psSimulate(file, timeout, location, tests);
 
-  
       } else { //not using simulate
         
       }
@@ -190,9 +208,9 @@ const stopJob = async (job) => {
 
  };
 
- const powershellCall = () => {
+ 
+ const powershellCall2 = () => {
   return new Promise((resolve, reject) => {
-
     try {
       const ps = new PowerShell({
         executionPolicy: 'Bypass',
@@ -200,26 +218,68 @@ const stopJob = async (job) => {
         PATH: process.env.PATH
       }); 
 
-      const file = `.\\test\\RanorexSimulateStandalone.ps1`;
+    /*   const file = `.\\test\\RanorexSimulateStandalone.ps1`;
       const timeout = `-timeout 5`;
-      const location = `-testlocation .\\logs\\`;
+      const location = `-testlocation .\\logs`;
       const tests = `-testArray TC12345,TC67890`;
       
       const newString = file.concat( " ", timeout, " ", location, " ", tests);
-      const command = PowerShell.command`${newString}`.replace("\"","").replace("\"","");
-      //const command = PowerShell.command`.\\test\\RanorexSimulateStandalone.ps1 -timeout 5 -testlocation .\\logs\\ -testArray TC12345,TC67890`;
-      ps.invoke(command)
-      .then(output => {
-        logger.info(output);
-        //const result = JSON.parse(output.raw);
-        ps.dispose();
-        resolve(output);
-      })
-      .catch(err => {
-        logger.error(err.stack);
-        ps.dispose();
-        reject(err);
-      });
+      const command = PowerShell.command`${newString}`.replace("\"","").replace("\"",""); */
+      const command = PowerShell.command`pwd`;
+        ps.invoke(command)
+        .then(output => {
+          logger.info(output);
+          //const result = JSON.parse(output.raw);
+          ps.dispose();
+          resolve(output);
+        })
+        .catch(err => {
+          logger.error(err.stack);
+          ps.dispose();
+          reject(err);
+        });
+    } catch (err) {
+      logger.error(err.stack);
+    }
+  });
+ };
+
+ const powershellCall = (file, timeout, location, tests) => {
+  return new Promise((resolve, reject) => {
+
+    try {
+        const ps = new PowerShell({
+          executionPolicy: 'Bypass',
+          noProfile: true,
+          PATH: process.env.PATH
+        }); 
+
+        /* const file = `.\\src\\utils\\scripts\\simulate.ps1`;
+        const timeout = `-timeout 5`;
+        const location = `-testlocation .\\logs\\`;
+        const tests = `-testArray TC12345,TC67890`; */
+        
+        //const newString = file.concat( ` `, timeout, ` `, location, ` `, tests);
+        const newString2 = `${file} ${timeout} ${location} ${tests}`;
+        //const newString3 = `${file} -timeout ${timeout} -testlocation ${location} -testArray ${tests}`;
+        //const command = PowerShell.command`${newString}`//.replace("\"","").replace("\"","");
+        //const command = PowerShell.command`.\\test\\RanorexSimulateStandalone.ps1 -timeout 5 -testlocation .\\logs\\ -testArray TC12345,TC67890`;
+        //const command = PowerShell.command`cd .\\test; pwd`;
+        //const command = PowerShell.command` .\\src\\utils\\scripts\\simulate.ps1 -timeout 5 -testlocation .\\logs\\ -testArray TC12345,TC67890`;
+        //const command = PowerShell.command`.\\test\\test.ps1`;
+        const command = PowerShell.command`${newString2}`.replace("\"","").replace("\"","");
+          ps.invoke(command)
+          .then(output => {
+            logger.info(output.raw);
+            //const result = JSON.parse(output.raw);
+            ps.dispose();
+            resolve(output);
+          })
+          .catch(err => {
+            logger.error(err.stack);
+            ps.dispose();
+            reject(err);
+          });
       } catch (err) {
         logger.error(err.stack);
       }
@@ -229,6 +289,178 @@ const stopJob = async (job) => {
 setTimeout( () => {
   addTestJobToQueue();
 }, 30000);
+
+///////////////////WORKER JOBS && HANDLERS/////////////////
+const jobHandlers1 = {
+  testJob: testJob
+};
+const jobHandlers2 = {
+  stopJob: stopJob
+};
+const jobHandlers3 = {
+  testTracker: testTracker
+};
+
+
+const proxyObserver = {
+  next(val) {
+    asyncScheduler.schedule(
+      (x) => finalObserver.next(x),
+      0 /* delay */,
+      val /* will be the x for the function above */
+    );
+  },
+
+  // ...
+};
+
+const processJob1b = async (job) => {
+ const handler = jobHandlers[job.name];
+ const justObs =  new Observable((proxyObserver) => {
+    
+    if (handler ) {
+      logger.info(`Processing job: ${job.name}`);
+      proxyObserver.next(handler(job));
+      //await handler(job);
+    }
+    
+    return function unsubscribe() {
+      console.log(`Unsubscribe in processJob: ${job.name} job.id= ${job.id} jobdata= ${job.data.jobData.name}`);
+    };
+  }).pipe(observeOn(asyncScheduler)
+);
+
+   
+  const finalObserver = {
+    next(val)  {
+      logger.info(`New job: ${val.name} and id= ${val.id} jobdata= ${val.data.jobData.name}`);
+      
+      if (val.data.jobData.name ==='yellow') {
+        logger.info(`Unsubscribe job: ${val.name} and id= ${val.id} jobdata= ${val.data.jobData.name}`);
+        subs.unsubscribe();
+      } 
+    },
+    error(err)  {logger.error(`error: ${err}`)},
+    complete()  {logger.info(`Subscription: done`);}
+  };
+
+  const subs = justObs.subscribe(finalObserver);
+
+};
+
+
+
+//testJobs
+const processJob = async (job) => {
+  const handler = jobHandlers1[job.name];
+
+    if (handler ) {
+      logger.info(`Processing job: ${job.name}`);
+      await handler(job);
+    }
+};
+
+//stopJob
+const processJob2 = async (job) => {
+    const handler = jobHandlers2[job.name];
+  
+      if (handler ) {
+        logger.info(`Processing job: ${job.name}`);
+        await handler(job);
+      }
+  };
+
+//testTracker
+const processJob3 = async (job) => {
+    const handler = jobHandlers3[job.name];    
+  
+      if (handler ) {
+        logger.info(`Processing job: ${job.name}`);
+        await handler(job);
+      }
+  };
+
+////////////WORKER CREATIONS///////////////////////////
+
+const testWorker = new Worker(
+    "testJobQueue", 
+    processJob, 
+    { connection: redisOptions,
+      removeOnComplete: {
+        age: 0,
+        count: 0,
+      },
+      removeOnFail: {
+        age: 0,
+      }
+     },
+  );
+logger.info("testWorker started!");
+  
+const stopWorker = new Worker("stopJobQueue", processJob2, { connection: redisOptions });
+logger.info("stopJobWorker started!");
+
+const testTrackerWorker = new Worker(
+    "testTrackerJobQueue", 
+    processJob3, 
+    { connection: redisOptions,
+      removeOnComplete: {
+        age: 0,
+        count: 0,
+      },
+      removeOnFail: {
+        age: 0,
+      }
+    });
+logger.info("testTrackerWorker started!");
+
+////////////WORKERS EVENTS///////////////////////////
+
+
+testWorker.on("completed", (job) => {
+  testJobQueue.remove(job.id);
+  testJobQueue.removeRepeatable(job.name, QueueOptions, job.id);
+  logger.info(`${job.id} has completed!`);
+});
+
+testWorker.on("failed", (job, err) => {
+logger.info(`${job.id} has failed with ${err.message}`);
+});
+
+testWorker.on('error', err => {
+// log the error
+logger.error(err.stack);
+});
+
+
+stopWorker.on("completed", (job) => {
+  //stopWorker.remove(job.id);
+  logger.info(`${job.id} has completed!`);
+});
+
+stopWorker.on("failed", (job, err) => {
+logger.info(`${job.id} has failed with ${err.message}`);
+});
+
+stopWorker.on('error', err => {
+// log the error
+logger.error(err.stack);
+});
+
+
+testTrackerWorker.on("completed", (job) => {
+//testTrackingJobQueue.remove(job.id);
+logger.info(`${job.id} has completed!`);
+});
+
+testTrackerWorker.on("failed", (job, err) => {
+logger.info(`${job.id} has failed with ${err.message}`);
+});
+
+testTrackerWorker.on('error', err => {
+// log the error
+logger.error(err.stack);
+});
 
 
  
@@ -241,8 +473,3 @@ module.exports.stopJobQueue = stopJobQueue;
 module.exports.testTrackerJobQueue = testTrackerJobQueue;
 module.exports.addTestJobToQueue = addTestJobToQueue;
 module.exports.obliterateJobsQueue = obliterateJobsQueue;
-module.exports.testJob = testJob;
-module.exports.stopJob = stopJob;
-module.exports.testTracker = testTracker;
-module.exports.QueueOptions = QueueOptions;
-module.exports.QueueOptions2 = QueueOptions2;

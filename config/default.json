@@ -8,9 +8,9 @@
     "dbUserIdPassword":"UjI4OumE9FlZX1NQ", 
     "dbName": "omniAgents",
     "testmode": {
-        "fileSimulater": ".\\ps\\RanorexSimulateStandalone.ps1",
+        "fileSimulater": ".\\src\\utils\\scripts\\simulate.ps1",
         "testDurationTime":"-timeout 5",
-        "outputLocation":"-testlocation .\\..\\..\\logs\\"
+        "outputLocation":"-testlocation .\\logs\\"
     }
 
 }

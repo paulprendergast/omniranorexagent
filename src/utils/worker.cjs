@@ -1,6 +1,6 @@
 const { Worker } = require( "bullmq");
 const { logger } = require("./logger.cjs");
-const { QueueOptions, QueueOptions2,  testTracker, testTrackerJobQueue, testJob, stopJob, stopJobQueue, redisOptions, testJobQueue } = require( "./queues.cjs");
+const {  testTracker,  testJob, stopJob, } = require( "./queues.cjs");
 const { Observable, observeOn, asyncScheduler } = require("rxjs");
 
 const jobHandlers1 = {
@@ -92,80 +92,3 @@ const processJob3 = async (job) => {
         await handler(job);
       }
   };
-
-////////////WORKERS AND EVENTS///////////////////////////
-
-const worker = new Worker(
-    "testJobQueue", 
-    processJob, 
-    { connection: redisOptions,
-      removeOnComplete: {
-        age: 0,
-        count: 0,
-      },
-      removeOnFail: {
-        age: 0,
-      }
-     },
-  );
-
-worker.on("completed", (job) => {
-    testJobQueue.remove(job.id);
-    testJobQueue.removeRepeatable(job.name, QueueOptions, job.id);
-    logger.info(`${job.id} has completed!`);
-});
-
-worker.on("failed", (job, err) => {
-  logger.info(`${job.id} has failed with ${err.message}`);
-});
-
-worker.on('error', err => {
-  // log the error
-  logger.error(err.stack);
-});
-logger.info("testJobWorker started!");
-
-const stopWorker = new Worker("stopJobQueue", processJob2, { connection: redisOptions });
-stopWorker.on("completed", (job) => {
-    //stopWorker.remove(job.id);
-    logger.info(`${job.id} has completed!`);
-});
-
-stopWorker.on("failed", (job, err) => {
-  logger.info(`${job.id} has failed with ${err.message}`);
-});
-
-stopWorker.on('error', err => {
-  // log the error
-  logger.error(err.stack);
-});
-
-logger.info("stopJobWorker started!");
-
-const testTrackerWorker = new Worker(
-    "testTrackerJobQueue", 
-    processJob3, 
-    { connection: redisOptions,
-      removeOnComplete: {
-        age: 0,
-        count: 0,
-      },
-      removeOnFail: {
-        age: 0,
-      }
-    });
-    testTrackerWorker.on("completed", (job) => {
-  //testTrackingJobQueue.remove(job.id);
-  logger.info(`${job.id} has completed!`);
-});
-
-testTrackerWorker.on("failed", (job, err) => {
-  logger.info(`${job.id} has failed with ${err.message}`);
-});
-
-testTrackerWorker.on('error', err => {
-  // log the error
-  logger.error(err.stack);
-});
-
-logger.info("testTrackerWorker started!");
