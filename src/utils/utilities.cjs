@@ -1,11 +1,13 @@
 var config = require('config');
+const _ = require('lodash');
+const db = require('./db.cjs');
 //const express = require('express');
 //const initRouter = express.Router();
 const { logger } = require("./logger.cjs");
 const { jobSchema } = require('../models/job.cjs');
-const { default: mongoose } = require('mongoose');
-const {processStates} = require('../states/process.states.cjs');
-const _ = require('lodash');
+//const { default: mongoose } = require('mongoose');
+const { processStates } = require('../states/process.states.cjs');
+
 
 
 
@@ -39,10 +41,21 @@ function filterObject(obj) {
 async function findAndUpdateJobStatus(jobId, statusValue) {
 
     try {
-        const jobModel = mongoose.model('Jobs', jobSchema);
-        const filter = { jobId: jobId};
-        const update = { status: statusValue};      
-        return await jobModel.findOneAndUpdate(filter, update, {new: true});
+            await db().then(async mongoose => {
+                try {
+                    const jobModel = mongoose.model('Jobs', jobSchema);
+                    const filter = { jobId: jobId};
+                    const update = { status: statusValue};      
+                    return await jobModel.findOneAndUpdate(filter, update, {new: true}); 
+                    
+                }catch (error) {
+                    console.log(error.stack);
+                }finally {
+                    mongoose.connection.close();
+                }
+            }).catch(err =>{ 
+                logger.error(err.stack);
+            });       
     } catch (error) {
         logger.error(error.stack);
     }

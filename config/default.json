@@ -1,16 +1,19 @@
 {
     "comment": "deployment ENV: 'production' or 'development'",
     "NODE_ENV": "development",
-    "AppPort": 4051,
+    "AppPort": 4050,
     "_comment1": "LogLevel only affects production; error=0, warn=1, info=2, http=3, debug=4",
     "LogLevel": "info",
     "dbUserId":"dbAdmin",
     "dbUserIdPassword":"UjI4OumE9FlZX1NQ", 
     "dbName": "omniAgents",
+    "redisPort": 6379,
+    "addToQueueDelay": 3000,
     "testmode": {
         "fileSimulater": ".\\src\\utils\\scripts\\simulate.ps1",
         "testDurationTime":"-timeout 5",
-        "outputLocation":"-testlocation .\\logs\\"
+        "outputLocation":"-testlocation .\\logs\\",
+        "comment1": "queueBehaviors config=true means behaviors will be enabled",
+        "queueBehaviors": "false"
     }
-
 }

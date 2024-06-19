@@ -10,11 +10,11 @@ const dbUrl =
 module.exports = async () => {
     
     mongoose.connection.on('error',(error) => logger.error("Mongoose DB connection error: " + error));
-    mongoose.connection.on('open', () => logger.info('Mongoose DB open'));
-    mongoose.connection.on('disconnected', () => logger.info('Mongoose DB disconnected'));
-    mongoose.connection.on('reconnected', () => logger.info('Mongoose DB reconnected'));
-    mongoose.connection.on('disconnecting', () => logger.info('Mongoose DB disconnecting'));
-    mongoose.connection.on('close', () => logger.info('Mongoose DB close'));
+    //mongoose.connection.on('open', () => logger.info('Mongoose DB open'));
+    //mongoose.connection.on('disconnected', () => logger.info('Mongoose DB disconnected'));
+    //mongoose.connection.on('reconnected', () => logger.info('Mongoose DB reconnected'));
+    //mongoose.connection.on('disconnecting', () => logger.info('Mongoose DB disconnecting'));
+    //mongoose.connection.on('close', () => logger.info('Mongoose DB close'));
     mongoose.connection.once('open',() => {
 
         logger.info('Connected to the mongo DB via Mongoose');
@@ -24,10 +24,9 @@ module.exports = async () => {
         maxPoolSize: 10, 
         wtimeoutMS: 2500,
     }).then( x =>{
-        logger.info(`await mongoose connected!`);
+        //logger.info(`await mongoose connected!`);
     }).catch(error => {
         logger.error(`Mongoose DB connect: ${error.stack}`);
     });
     return mongoose;
 };
-

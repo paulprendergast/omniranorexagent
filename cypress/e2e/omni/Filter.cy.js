@@ -6,7 +6,7 @@ import jobNotStarted from '../../fixtures/jobNotStarted.json';
 import jobPaused from '../../fixtures/jobPaused.json';
 import jobProcessing from '../../fixtures/jobProcessing.json';
 import jobStopped from '../../fixtures/jobStopped.json';
-const processStates = require('../../../src/states/process.states');
+const { processStates } = require('../../../src/states/process.states.cjs');
 
 describe('Filter for the landing page',() => {
 

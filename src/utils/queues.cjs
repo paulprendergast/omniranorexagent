@@ -6,7 +6,7 @@ const { jobSchema } = require('../models/job.cjs');
 const { Queue, Worker } = require("bullmq");
 const { psGetProcess, psSimulate } = require('./powershellTools.cjs');
 const { processStates } = require('../states/process.states.cjs');
-const redisOptions = { host: "localhost", port: 6379 };
+const redisOptions = { host: "localhost", port: config.get('redisPort') };
 const { PowerShell } = require("node-powershell");
 const db = require('./db.cjs');
 //const { Observable, observeOn, asyncScheduler } = require("rxjs");
@@ -52,12 +52,6 @@ async function addTestJobToQueue() {
     }).catch(err => {
       logger.error(err.stack);
     })        
-    /* let responseJobs = jobModel.find({});
-    let foundJobs = await responseJobs.sort({ init_date: 'asc'})
-                                      .then(async(jobs) => {
-                                        logger.info('foundjobs');
-                                      }); */
-
 
     const notStarted = _.filter(foundJobs, {'status': processStates.NotStarted});
     const processing = _.filter(foundJobs, {'status': processStates.Processing});
@@ -181,114 +175,6 @@ const stopJob = async (job) => {
      return job;
  };
 
- const powershellGetProcess = () => {
-  return new Promise((resolve, reject) => {
-
-    const ps = new PowerShell({
-        executionPolicy: 'Bypass',
-        noProfile: true,
-        PATH: process.env.PATH
-    }); 
-
-    
-    const command = PowerShell.command`.\\test\\FetchPwsh_process.ps1`;
-    ps.invoke(command)
-    .then(output => {
-      console.log(output);
-      //const result = JSON.parse(output.raw);
-      ps.dispose();
-      resolve(output);
-    })
-    .catch(err => {
-      console.log(err);
-      ps.dispose();
-      reject(err);
-    });
-  });
-
- };
-
- 
- const powershellCall2 = () => {
-  return new Promise((resolve, reject) => {
-    try {
-      const ps = new PowerShell({
-        executionPolicy: 'Bypass',
-        noProfile: true,
-        PATH: process.env.PATH
-      }); 
-
-    /*   const file = `.\\test\\RanorexSimulateStandalone.ps1`;
-      const timeout = `-timeout 5`;
-      const location = `-testlocation .\\logs`;
-      const tests = `-testArray TC12345,TC67890`;
-      
-      const newString = file.concat( " ", timeout, " ", location, " ", tests);
-      const command = PowerShell.command`${newString}`.replace("\"","").replace("\"",""); */
-      const command = PowerShell.command`pwd`;
-        ps.invoke(command)
-        .then(output => {
-          logger.info(output);
-          //const result = JSON.parse(output.raw);
-          ps.dispose();
-          resolve(output);
-        })
-        .catch(err => {
-          logger.error(err.stack);
-          ps.dispose();
-          reject(err);
-        });
-    } catch (err) {
-      logger.error(err.stack);
-    }
-  });
- };
-
- const powershellCall = (file, timeout, location, tests) => {
-  return new Promise((resolve, reject) => {
-
-    try {
-        const ps = new PowerShell({
-          executionPolicy: 'Bypass',
-          noProfile: true,
-          PATH: process.env.PATH
-        }); 
-
-        /* const file = `.\\src\\utils\\scripts\\simulate.ps1`;
-        const timeout = `-timeout 5`;
-        const location = `-testlocation .\\logs\\`;
-        const tests = `-testArray TC12345,TC67890`; */
-        
-        //const newString = file.concat( ` `, timeout, ` `, location, ` `, tests);
-        const newString2 = `${file} ${timeout} ${location} ${tests}`;
-        //const newString3 = `${file} -timeout ${timeout} -testlocation ${location} -testArray ${tests}`;
-        //const command = PowerShell.command`${newString}`//.replace("\"","").replace("\"","");
-        //const command = PowerShell.command`.\\test\\RanorexSimulateStandalone.ps1 -timeout 5 -testlocation .\\logs\\ -testArray TC12345,TC67890`;
-        //const command = PowerShell.command`cd .\\test; pwd`;
-        //const command = PowerShell.command` .\\src\\utils\\scripts\\simulate.ps1 -timeout 5 -testlocation .\\logs\\ -testArray TC12345,TC67890`;
-        //const command = PowerShell.command`.\\test\\test.ps1`;
-        const command = PowerShell.command`${newString2}`.replace("\"","").replace("\"","");
-          ps.invoke(command)
-          .then(output => {
-            logger.info(output.raw);
-            //const result = JSON.parse(output.raw);
-            ps.dispose();
-            resolve(output);
-          })
-          .catch(err => {
-            logger.error(err.stack);
-            ps.dispose();
-            reject(err);
-          });
-      } catch (err) {
-        logger.error(err.stack);
-      }
-  });
-};
-
-setTimeout( () => {
-  addTestJobToQueue();
-}, 30000);
 
 ///////////////////WORKER JOBS && HANDLERS/////////////////
 const jobHandlers1 = {
@@ -464,9 +350,18 @@ logger.error(err.stack);
 
 
  
+//////////////////ADD TO QUEUE//////////////////
+
+const queueBehaviors = config.get('testmode.queueBehaviors') ==="true"?true:false;
+if (queueBehaviors) {
+
+  setTimeout( () => {
+    addTestJobToQueue();
+  }, config.get('addToQueueDelay'));
+}
 
 
-
+//////////////////EXPORT////////////////////////////
 module.exports.redisOptions = redisOptions;
 module.exports.testJobQueue = testJobQueue;
 module.exports.stopJobQueue = stopJobQueue;

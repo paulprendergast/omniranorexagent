@@ -6,7 +6,8 @@ import jobNotStarted from '../../fixtures/jobNotStarted.json';
 import jobPaused from '../../fixtures/jobPaused.json';
 import jobProcessing from '../../fixtures/jobProcessing.json';
 import jobStopped from '../../fixtures/jobStopped.json';
-const processStates = require('../../../src/states/process.states');
+const { processStates } = require('../../../src/states/process.states.cjs');
+
 
 describe('Testing the Process selection', () => {
 
@@ -36,32 +37,5 @@ describe('Testing the Process selection', () => {
         
     });
 
-    it('Take first TestJob in jobs table and start simulate and status is updated to InProgress', () => {
-
-        cy.fixture('jobNotStarted').then((json) => {
-            let newJob = json; 
-            newJob[0].jobId  = newJob[0].jobId.substring(0,23) + '1';  
-          
-            newJob[0].init_date = new Date(Date.now()).toUTCString();
-            newJob[0].testmode.enabled = 'true';
-            newJob[0].testmode.simulate = 'true';
-            cy.request('POST','/init', newJob );
-        });
-
-        cy.fixture('jobNotStarted').then((json) => {
-            let newJob = json;
-            newJob[0].jobId  = newJob[0].jobId.substring(0,23) + '2';                 
-            newJob[0].init_date = new Date(Date.now()).addSecs(1).toUTCString();
-            newJob[0].testmode.enabled = 'true';
-            newJob[0].testmode.simulate = 'true';
-            cy.request('POST','/init', newJob );
-        });
-        cy.visit('/');
-
-        cy.getBySel('accordion-header').parent().find('h2').should('have.length', 2);
-        cy.getBySel('accordion-header').parent().find('h2').eq(0).contains(processStates.InProgress);
-        cy.getBySel('accordion-header').parent().find('h2').eq(1).contains(processStates.NotStarted);
-        
-    });
 
 });
