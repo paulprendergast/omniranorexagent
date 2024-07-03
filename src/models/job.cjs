@@ -129,6 +129,16 @@ const jobSchema = new mongoose.Schema({
             validate: requireStringValidator
         }
     }),
+    process: new mongoose.Schema({
+        id: {
+            type: Number,
+            require: false
+        },
+        init_date: {
+            type: Date,
+            require: false
+        }       
+    }),
     testmode: new mongoose.Schema({
         enabled: {
             type: String,

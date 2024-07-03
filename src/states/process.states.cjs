@@ -4,6 +4,11 @@
     InProgress: 'InProgress',
     Completed: 'Completed',
     Paused: 'Paused',
-    Stopped: 'Stopped'   
+    Stopped: 'Stopped',
+    Crashed: 'Crashed',
+    Finished: 'Finished',
+    Pass:'Pass',
+    Fail:'Fail',
+    Crash:'Crash'
 };
 module.exports.processStates = processStates;

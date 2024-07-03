@@ -7,7 +7,7 @@ const debug = require('debug')('app');
 const app = express();
 const db = require('./src/utils/db.cjs');
 const bodyParser = require('body-parser');
-const utilities = require('./src/utils/utilities.cjs');
+const utilities = require('./src/utils/dbUtilities.cjs');
 const _ = require('lodash');
 const { morganMiddleware } = require("./src/middleware/morgan.middleware.cjs");
 const { logger } = require("./src/utils/logger.cjs");
@@ -17,7 +17,7 @@ const { MongoClient } = require('mongodb');
 const { jobSchema } = require('./src/models/job.cjs');
 const { exceptions } = require('winston');
 const { processStates } = require('./src/states/process.states.cjs');
-const { connectionDB } = require('./src/utils/db.cjs');
+//const { findInProgressTestJob } = require('./src/utils/db.cjs');
 //const { default: mongoose } = require('mongoose');
 const { obliterateJobsQueue } = require('./src/utils/queues.cjs');
 
@@ -98,6 +98,6 @@ app.listen(PORT, () => {
 });
 
 const queueBehaviors = config.get('testmode.queueBehaviors') ==="true"?true:false;
-if (queueBehaviors) {
+if (queueBehaviors) {   
     obliterateJobsQueue();
 }

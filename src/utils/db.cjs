@@ -20,13 +20,14 @@ module.exports = async () => {
         logger.info('Connected to the mongo DB via Mongoose');
     });
 
-    await mongoose.connect(dbUrl, {
-        maxPoolSize: 10, 
-        wtimeoutMS: 2500,
-    }).then( x =>{
-        //logger.info(`await mongoose connected!`);
-    }).catch(error => {
+    try {
+        await mongoose.connect(dbUrl, {
+            maxPoolSize: 20, 
+            wtimeoutMS: 2500,
+            serverSelectionTimeoutMS: 20000,
+        });
+    } catch (error) {
         logger.error(`Mongoose DB connect: ${error.stack}`);
-    });
+    }
     return mongoose;
 };

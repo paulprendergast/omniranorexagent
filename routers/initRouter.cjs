@@ -161,6 +161,10 @@ initRouter.route('/')
                             omnicenterIp: body.agentData.omnicenterIp,
                             ctip: body.agentData.ctip,
                         },
+                        objectJobModel.process = {
+                            id: body.process.id,
+                            init_date: body.process.init_date
+                        },
                         objectJobModel.testmode = {
                             enabled: body.testmode.enabled,
                             simulate: body.testmode.simulate,

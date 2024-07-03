@@ -11,10 +11,10 @@ const psGetProcess = () => {
       }); 
   
       
-      const command = PowerShell.command`.\\test\\FetchPwsh_process.ps1`;
+      const command = PowerShell.command`.\\src\\utils\\scripts\\getprocess.ps1`;
       ps.invoke(command)
       .then(output => {
-        logger.debug(output);
+        logger.debug(output.raw);
         //const result = JSON.parse(output.raw);
         ps.dispose();
         resolve(output);
@@ -52,7 +52,7 @@ const psSimulate = (file, timeout, location, tests) => {
         const command = PowerShell.command`${newString2}`.replace("\"","").replace("\"","");
           ps.invoke(command)
           .then(output => {
-            logger.info(output.raw);
+            logger.debug(output.raw);
             //const result = JSON.parse(output.raw);
             ps.dispose();
             resolve(output);
