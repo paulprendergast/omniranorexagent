@@ -5,7 +5,8 @@ const db = require('./db.cjs');
 const redisOptions = { host: "localhost", port: config.get('redisPort') };
 const moment = require("moment");
 const momentz = require("moment-timezone");
-const utilities = require('./dbUtilities.cjs');
+const dbUtilities = require('./dbUtilities.cjs');
+const utilities = require('./utilities.cjs');
 const node = require('timers/promises');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -50,7 +51,7 @@ let trackJobData = {
 async function addTestJobToQueue() {
   try {
     logger.info('looking for jobs');
-    let foundJobs = await utilities.findAll()   
+    let foundJobs = await dbUtilities.findAll()   
     const notStarted = _.filter(foundJobs, {'status': processStates.NotStarted});
     const processing = _.filter(foundJobs, {'status': processStates.Processing});
     const inProgress = _.filter(foundJobs, {'status': processStates.InProgress});
@@ -93,7 +94,7 @@ const testJob = async (job) => {
   //already assume this is first time or continue job
   const jobId  = job.data.jobData.jobId;
   //let dbJobId='';
-  let dbJobId = await utilities.getJobFromDb(jobId);
+  let dbJobId = await dbUtilities.getJobFromDb(jobId);
   
  // add job to TestTrackWorker with 7sec delay
  // assuming sim will start on time
@@ -117,7 +118,7 @@ const testJob = async (job) => {
         //const newDate = Date.now();//YYYY-MM-DDTHH:mm:ss.sssZ
         const formatNewDate = momentz.tz(Date.now(), config.get('timeZone'));
         logger.debug(formatNewDate.toString());
-        await utilities.findAndUpdateJob(dbJobId.jobId, {
+        await dbUtilities.findAndUpdateJob(dbJobId.jobId, {
           status: processStates.InProgress, 
           init_date: formatNewDate, 
           trans_date: formatNewDate 
@@ -222,12 +223,7 @@ const testTracker = async (job) => {
       
       // store processId in testJob in DB
       const formatNewDate = momentz.tz(testJobProcess.date, config.get('timeZone'));
-      await utilities.findAndUpdateJob(jobId, {
-        process: {
-          id: testJobProcess.id, 
-          init_date: formatNewDate
-        } 
-      });
+      await dbUtilities.findAndUpdateJob(jobId, {process: {id: testJobProcess.id, init_date: formatNewDate} });
      
       let lastRound = false;
       //watcherDelay default 65000
@@ -237,7 +233,7 @@ const testTracker = async (job) => {
         if(lastRound)
           break;
 
-        let dbJobProcessId = await utilities.getJobFromDb(jobId);
+        let dbJobProcessId = await dbUtilities.getJobFromDb(jobId);
         dbJobProcessId = dbJobProcessId.process.id;        
         // watch ProcessID until it does not exist
         if(!((await psGetProcess()).raw.includes(dbJobProcessId))) {lastRound = true; watcherDelay = 5000;}
@@ -246,10 +242,7 @@ const testTracker = async (job) => {
 
       //Update JobId status = Complete
       const completeNewDate = momentz.tz(Date.now(), config.get('timeZone'));
-      await utilities.findAndUpdateJob(jobId, {
-          status: processStates.Completed, 
-          trans_date: completeNewDate 
-      });
+      await dbUtilities.findAndUpdateJob(jobId, {status: processStates.Completed, trans_date: completeNewDate });
   } catch (error) {
     logger.error(error.stack);
   }
@@ -259,157 +252,23 @@ const testTracker = async (job) => {
 
 async function watchFolderStatusAndUpdate(jobId) {
   try {
-        logger.debug(`Current directory: ${__dirname}`);
-        const dirPath = path.join(__dirname, './../../logs/');
-        let folders = fs.readdirSync(dirPath);
-        logger.debug(`found directory: ${dirPath}`); // directories and 2 files      
-        logger.debug(`folder last: ${folders.pop()}`); //remove all.log
-        logger.debug(`folder last2: ${folders.pop()}`); //error.log
-        logger.debug(`found after two pops: ${folders}`); //all directories
-          
-       //[{TC12345-09-05-Fail,2024-07-01T09:05:00.000+00:00}]
-        let testMapToBirthDate = new Map();
-        for(const fold of folders) {
-          logger.debug(`folder: ${fold}`);
-          let value = await fsPromises.stat(path.join(dirPath, fold));
-          logger.debug(`folder: ${fold}: ${value.birthtime}`);
-          let newDate = new Date(value.birthtime);
-          let modDate = new Date(value.mtime);
-          logger.debug(newDate.toString());
-          testMapToBirthDate.set(fold, { birthDate: newDate, modDate: modDate });      
-        }
-        logger.debug([...testMapToBirthDate.entries()]);
-
+        const directoryData = await utilities.readDirectoryDataAndReturnMap(jobId);
+        logger.debug([...directoryData.entries()]);
         //Get Latest TestJob update from DB
-        let dbJob = await utilities.getJobFromDb(jobId);
-        const runProcDate = dbJob.process.init_date;
-
+        let dbJob = await dbUtilities.getJobFromDb(jobId);
         ///finds tests started after sim process date
-        let newMap = new Map();
-        for(const [myKey, myValue] of testMapToBirthDate) {
-          const myKeySub = myKey.split('-')[0];//testID
-          if(myValue.birthDate.getTime() > runProcDate.getTime()) {
-            newMap.set(myKeySub, {test: myKey, birthDate: myValue.birthDate, modDate: myValue.modDate });
-          }
-        }
-
-
+        const dataAfterStartedProcess = await utilities.findTestsStartAfterTestProcess(dbJob.process.init_date, directoryData);
         //which has status or no status.
-        const foundTestStatus = new Map();
-        const foundTestNoStatus = new Map();
-        for( const [myKey, myValue] of newMap){
-          const myKeySub = myValue.test.includes('-Pass') || myValue.test.includes('-Fail') ||
-                            myValue.test.includes('-Crash')? true:false;
-          if(myKeySub) {
-            foundTestStatus.set(myKey, {test: myValue.test, birthDate: myValue.birthDate, modDate: myValue.modDate });
-          }else {
-            foundTestNoStatus.set(myKey, {test: myValue.test, birthDate: myValue.birthDate, modDate: myValue.modDate });
-          }
-        }
-
-
-        //update status for TC  
-        let dbTests = dbJob.testGroup; //array
-        let results = new Array();
-        //Test has start date, needs workstatus =inprogress, has not finshed or pass/fail
-        for(const [myKey, myValue] of foundTestNoStatus) {
-          for(const dbTest of dbTests){
-            if (myKey === dbTest.testId) { //test has started never finished
-              results.push({
-                testId: dbTest.testId,
-                start_date: myValue.birthDate,
-                finished_date: dbTest.finished_date,
-                workStatus: processStates.InProgress,
-                status: processStates.InProgress
-              });
-              break;
-            }
-          } 
-        }
-        //update status for TC 
-        //Test has finshed, has workstatus = finished and status = pass/fail
-        for(const [myKey, myValue] of foundTestStatus) {
-          for(const dbTest of dbTests){
-            if (myKey === dbTest.testId && dbTest.workStatus !== processStates.Finished) { //test has started never finished
-              let status = "";
-              if (myValue.test.includes('-Pass')) {
-                status = processStates.Pass;
-              } else if(myValue.test.includes('-Fail')) {
-                status = processStates.Fail;
-              } else {
-                status = processStates.Crash;
-              }
-              results.push({
-                testId: dbTest.testId,
-                start_date: myValue.birthDate,
-                finished_date: myValue.modDate,//need this mod date folders
-                workStatus: processStates.Finished,
-                status: status
-              });
-              break;
-            }
-          }
-        }
-        logger.debug(`results: ${results}`);
-        // get inverse test of intersection and add with changes to new list
-        let rTestNames = Array();
-        let dbTestNames = Array();
-        for (let index = 0; index < results.length; index++) {
-          rTestNames.push(results[index].testId);  
-        }
-        for (let index = 0; index < dbTests.length; index++) {
-          dbTestNames.push(dbTests[index].testId);
-        }
-        const xorName = _.xor(rTestNames,dbTestNames);
-        let dbXor = new Array();
-        for (let j = 0; j < xorName.length; j++) {
-          for (const test of dbTests) {
-            if (xorName[j] === test.testId) {
-              dbXor.push({
-                testId: test.testId,
-                start_date: test.start_date,
-                finished_date: test.finished_date,
-                workStatus: test.workStatus,
-                status: test.status
-              });
-              break;
-            } 
-          }
-        }
-        
-        const newUnOrder = results.concat(dbXor);
-        logger.debug(`newUnOrder: ${newUnOrder}`);
-        
-        // follow DBTests order.
-        let newOrder = Array();
-        for(const dbTest of dbTests) {
-          for(const n of newUnOrder){
-            if(dbTest.testId === n.testId){
-              newOrder.push(n);
-              break;
-            }
-          }        
-        }
-        logger.debug(`newOrder: ${newOrder}`);
-        let dbTestsFormat = Array();
-        for(const dbtest of dbTests){
-          dbTestsFormat.push({
-            testId: dbtest.testId,
-            start_date: dbtest.start_date,
-            finished_date: dbtest.finished_date,
-            workStatus: dbtest.workStatus,
-            status: dbtest.status
-          })
-        }
-
-        const compareResults = compareTestSet(dbTestsFormat, newOrder);
+        const splitStatus = await utilities.splitTestStatus(dataAfterStartedProcess);
+        //update status for TC  nostatus
+        const results = await utilities.buildTestResult(splitStatus[0], splitStatus[1], dbJob.testGroup);
+        const compareResults = utilities.compareTestSet(results[0], results[1]);
         const compareString = compareResults === true? 'Matched-true - tests are not updated to DB': 'UnMatched-false - tests are getting updated to DB';       
         logger.debug(`compareTest: ${compareString}`);
-
         //return count of TC that do not have status.
-        if (newOrder.length === newUnOrder.length && !compareResults) {
+        if (results[0].length === results[1].length && !compareResults) {
           logger.debug("watchFolderStatusAndUpdate() work correctly");
-          await utilities.findAndUpdateJob(jobId,{testGroup: newOrder});
+          await dbUtilities.findAndUpdateJob(jobId,{testGroup: results[1]});
         } 
   } catch (error) {
     logger.error(error.stack);
@@ -606,7 +465,7 @@ const queueBehaviors = config.get('testmode.queueBehaviors') ==="true"?true:fals
 if (queueBehaviors) {
   setTimeout( async () => {
     
-    if (!(await utilities.findInProgressTestJob())) {
+    if (!(await dbUtilities.findInProgressTestJob())) {
       logger.info('front did not find inprogess Testjob starting new job');
       addTestJobToQueue();           
     } else {
