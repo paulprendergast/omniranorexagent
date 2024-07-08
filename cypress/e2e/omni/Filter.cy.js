@@ -1,4 +1,5 @@
 /// <reference types="cypress" />
+import { log } from 'winston';
 import job from '../../fixtures/job.json';
 import jobCompleted from '../../fixtures/jobCompleted.json';
 import jobInProgress from '../../fixtures/jobInProgress.json';
@@ -19,6 +20,9 @@ describe('Filter for the landing page',() => {
       });
     before(() => {
         
+      /// File Default.json
+      /// "byPassQueue": "false"
+      /// "queueBehaviors": "false",
     });
     after(() => {
         
@@ -26,6 +30,8 @@ describe('Filter for the landing page',() => {
     afterEach(() => {
         
     });
+
+    
     
     
     it('Basic order for status types', () => {
@@ -114,5 +120,20 @@ describe('Filter for the landing page',() => {
           }); 
           cy.visit('/');
           cy.getBySel('accordion-header').should('not.exist');
+    });
+
+  it('First TestJob in jobs table', () => {
+
+      cy.fixture('jobNotStarted').then((json) => {
+          let newJob = json;                
+          newJob[0].init_date = new Date(Date.now()).toUTCString();
+          newJob[0].testmode.enabled = 'true';
+          cy.request('POST','/init', newJob );
       });
+      cy.visit('/');
+
+      cy.getBySel('accordion-header').parent().find('h2').should('have.length', 1);
+      cy.getBySel('accordion-header').parent().find('h2').eq(0).contains(processStates.NotStarted);  
+  });
+
 });

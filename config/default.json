@@ -1,5 +1,5 @@
 {
-    "comment": "deployment ENV: 'production' or 'development'",
+    "_comment": "deployment ENV: 'production' or 'development'",
     "NODE_ENV": "development",
     "AppPort": 4052,
     "_comment1": "LogLevel only affects production; error=0, warn=1, info=2, http=3, debug=4",
@@ -9,13 +9,17 @@
     "dbName": "omniAgents",
     "redisPort": 6379,
     "addToQueueDelay": 30000,
+    "_comment2":"tracker time gap for to processId; requiremend =61000",
+    "findPwshProcessDelay":61000,
     "timeZone": "America/Los_Angeles",
-    "watcherDelay":"65000",
+    "watcherDelay":65000,
     "testmode": {
         "fileSimulater": ".\\src\\utils\\scripts\\simulate.ps1",
         "testDurationTime":"-timeout 180",
         "outputLocation":"-testlocation .\\logs\\",
-        "comment1": "queueBehaviors config=true means behaviors will be enabled",
-        "queueBehaviors": "true"
+        "_comment1": "queueBehaviors config=true means behaviors add testJob to queue and obliterateJobs will be enabled",
+        "queueBehaviors": "false",
+        "_comment2": "byPassQueue=true allow testJobs only to go into queue; use this automation",
+        "byPassQueue": "true"
     }
 }

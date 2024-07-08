@@ -9,7 +9,11 @@ describe('Navigation to Apis', () => {
     beforeEach(() => {
       cy.request('DELETE','/init');
     });
-    before(() => {});
+    before(() => {
+      /// File Default.json
+      /// "byPassQueue": "false"
+      /// "queueBehaviors": "false",
+    });
     afterEach(() => {});
     after(() => {});
 

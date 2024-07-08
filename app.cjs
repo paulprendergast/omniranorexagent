@@ -7,7 +7,7 @@ const debug = require('debug')('app');
 const app = express();
 const db = require('./src/utils/db.cjs');
 const bodyParser = require('body-parser');
-const utilities = require('./src/utils/dbUtilities.cjs');
+const dbUtilities = require('./src/utils/dbUtilities.cjs');
 const _ = require('lodash');
 const { morganMiddleware } = require("./src/middleware/morgan.middleware.cjs");
 const { logger } = require("./src/utils/logger.cjs");
@@ -20,6 +20,7 @@ const { processStates } = require('./src/states/process.states.cjs');
 //const { findInProgressTestJob } = require('./src/utils/db.cjs');
 //const { default: mongoose } = require('mongoose');
 const { obliterateJobsQueue } = require('./src/utils/queues.cjs');
+require('events').EventEmitter.defaultMaxListeners = 25;
 
 
 
@@ -77,7 +78,7 @@ app.get('/', (req, res) => {
 
             if (responseJobs instanceof Array) {
 
-                newFilterJobs = await utilities.filterObject(responseJobs);
+                newFilterJobs = await dbUtilities.filterObject(responseJobs);
                 res.render('index', {newFilterJobs});
             } else {
                 const newError = "The responseJobs did not return Array."; 

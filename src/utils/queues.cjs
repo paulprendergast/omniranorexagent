@@ -72,7 +72,7 @@ async function addTestJobToQueue() {
           logger.info("Testmode = enabled and Simulate = disabled");
       }   
     } else {
-        logger.info("There a TestJob inProgress!");
+        logger.info("There a TestJob inProgress in the queue! app crashed auto retry will come here");
     }
   } catch (error) {
     logger.error(error.stack);
@@ -217,7 +217,7 @@ const testTracker = async (job) => {
   
   try {
       logger.info('add job to testTrackerJobQueue');
-      await node.setTimeout(61000);//this put a gap in pwsh starttime
+      await node.setTimeout(config.get('findPwshProcessDelay'));//this put a gap in pwsh starttime: default 61000
       let minuteAfter =  decyferGetProcess(await psGetProcess());
       const testJobProcess = findRunningTestJobProcess(minuteAfter); 
       
@@ -236,7 +236,7 @@ const testTracker = async (job) => {
         let dbJobProcessId = await dbUtilities.getJobFromDb(jobId);
         dbJobProcessId = dbJobProcessId.process.id;        
         // watch ProcessID until it does not exist
-        if(!((await psGetProcess()).raw.includes(dbJobProcessId))) {lastRound = true; watcherDelay = 5000;}
+        if(!((await psGetProcess()).raw.includes(dbJobProcessId))) {lastRound = true; watcherDelay = 1000;}
         await node.setTimeout(watcherDelay);
       }
 
@@ -462,14 +462,15 @@ logger.error(err.stack);
 //////////////////ADD TO QUEUE//////////////////
 
 const queueBehaviors = config.get('testmode.queueBehaviors') ==="true"?true:false;
-if (queueBehaviors) {
+const queueByPass = config.get('testmode.byPassQueue') ==="true"?true:false;
+if (queueBehaviors || queueByPass) {
   setTimeout( async () => {
     
-    if (!(await dbUtilities.findInProgressTestJob())) {
-      logger.info('front did not find inprogess Testjob starting new job');
-      addTestJobToQueue();           
-    } else {
+    if (await dbUtilities.findInProgressTestJob()) {
       logger.info('front found inprogess Testjob doing nothing');
+    } else {      
+      logger.info('front did not find inprogess Testjob starting new job');
+      addTestJobToQueue();  
     }
   }, config.get('addToQueueDelay')); 
 }
