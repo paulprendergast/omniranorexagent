@@ -11,6 +11,8 @@ const node = require('timers/promises');
 const fs = require('node:fs');
 const path = require('node:path');
 const fsPromises = require('node:fs/promises');
+const chokidar = require('chokidar');
+const observer = require('./observer.cjs');
 const { jobSchema } = require('../models/job.cjs');
 const { Queue, Worker, tryCatch } = require("bullmq");
 const { psGetProcess, psSimulate } = require('./powershellTools.cjs');
@@ -18,6 +20,7 @@ const { processStates } = require('../states/process.states.cjs');
 const { logger } = require("./logger.cjs");
 const { PowerShell } = require("node-powershell");
 //const { Observable, observeOn, asyncScheduler } = require("rxjs");
+let watcher = new observer('./logs');
 
 const QueueOptions = {
   delay: 5000,
@@ -35,7 +38,7 @@ const QueueOptions2 = {
 };
 const testJobQueue = new Queue("testJobQueue", { connection: redisOptions });
 const stopJobQueue = new Queue("stopJobQueue", { connection: redisOptions });
-const testTrackerJobQueue = new Queue("testTrackerJobQueue", { connection: redisOptions });
+
 
 let testJobData = { 
   name: 'testJob',
@@ -80,15 +83,10 @@ async function addTestJobToQueue() {
 }
 
 async function obliterateJobsQueue(){ 
-  await testTrackerJobQueue.obliterate();
-  logger.info('obliterate testTrackerJobQueue');
   await testJobQueue.obliterate();
   logger.info('obliterate testJobQueue');
 }
 
-async function drainJobsQueue(){
-  await testJobQueue.drain();
-}
 
 const testJob = async (job) => {
   //already assume this is first time or continue job
@@ -98,70 +96,77 @@ const testJob = async (job) => {
   
  // add job to TestTrackWorker with 7sec delay
  // assuming sim will start on time
-  await testTrackerJobQueue.add(trackJobData.name, trackJobData, QueueOptions2);
+  //await testTrackerJobQueue.add(trackJobData.name, trackJobData, QueueOptions2);
 
   const testmodeSimulate = dbJobId.testmode.simulate;
   let testGroup = dbJobId.testGroup;
   const jobStatusNotStarted  = dbJobId.status === processStates.NotStarted? true:false;
   const jobStatusInProgress  = dbJobId.status === processStates.InProgress? true:false;
-
-  if (jobStatusNotStarted) { //job status = NotStarted// starting new TestJob
-    let testCollection = '';
-    for (let index = 0; index < testGroup.length; index++) {     
-      testCollection += testGroup[index].testId + ',';      
-    } 
-    //trim last character
-    testCollection = testCollection.substring(0, testCollection.length - 1);
-
-    try {
-      if (testmodeSimulate) { //using simulate
-        //const newDate = Date.now();//YYYY-MM-DDTHH:mm:ss.sssZ
-        const formatNewDate = momentz.tz(Date.now(), config.get('timeZone'));
-        logger.debug(formatNewDate.toString());
-        await dbUtilities.findAndUpdateJob(dbJobId.jobId, {
-          status: processStates.InProgress, 
-          init_date: formatNewDate, 
-          trans_date: formatNewDate 
-        });       
-        const file = config.get('testmode.fileSimulater');
-        const timeout = config.get('testmode.testDurationTime');
-        const location = config.get('testmode.outputLocation');
-        const tests = `-testArray ${testCollection}`;
-        logger.debug(`starting simulate: ${testCollection}`);
-        await psSimulate(file, timeout, location, tests);
-        logger.debug(`finished simulate`);
-
-      } else { //not using simulate
-        logger.error('Simulator off not developed.');
-      }
-    } catch (err) {
-      logger.error(err.stack);
-    }  
-  } else if(jobStatusInProgress) { //found job in queue will retry
-      logger.info("found process existed after crash");
-      /*let testCollection = '';
-      for (let i = 0; i < testGroup.length; i++) {
-        if (testGroup[i].status === processStates.NotStarted || 
-          testGroup[i].status === processStates.InProgress ) {
-            
-            testCollection += testGroup[i].testId + ',';         
-        } else if(testGroup[i].status === processStates.InProgress) {
-            /// new function
-            //If processId exist in testJob in DB
-            ////do:remove tests that have status pass/fail. this is for retry logic to start where left off
-            //////if found inProgress->
-            //////do:copy over CT and other logs to folder and set folder ending to crashed and remove test from new list
-            //////do:update testjob crashed test in DB.
-            ////else: update testJob status, start time, and processid
-        }    
-      }  */
-      
-      //need to think when found Inprogress after crash what to do
-
+  watcher.watchFolder();
+  try {
+    if (jobStatusNotStarted) { //job status = NotStarted// starting new TestJob
+      let testCollection = '';
+      for (let index = 0; index < testGroup.length; index++) {     
+        testCollection += testGroup[index].testId + ',';      
+      } 
       //trim last character
-      //testCollection = testCollection.substring(0, testCollection.length - 1);   
-  } 
-
+      testCollection = testCollection.substring(0, testCollection.length - 1);
+      
+      try {
+        if (testmodeSimulate) { //using simulate
+          //const newDate = Date.now();//YYYY-MM-DDTHH:mm:ss.sssZ
+          const formatNewDate = momentz.tz(Date.now(), config.get('timeZone'));
+          logger.debug(formatNewDate.toString());
+          await dbUtilities.findAndUpdateJob(dbJobId.jobId, {
+            status: processStates.InProgress, 
+            init_date: formatNewDate, 
+            trans_date: formatNewDate 
+          }); 
+          
+          const file = config.get('testmode.fileSimulater');
+          const timeout = config.get('testmode.testDurationTime');
+          const location = config.get('testmode.outputLocation');
+          const tests = `-testArray ${testCollection}`;
+          logger.debug(`starting simulate: ${testCollection}`);
+          await psSimulate(file, timeout, location, tests);
+          logger.debug(`finished simulate`);         
+  
+        } else { //not using simulate
+          logger.error('Simulator off not developed.');
+        }
+      } catch (err) {
+        logger.error(err.stack);
+      } 
+    } else if(jobStatusInProgress) { //found job in queue will retry
+        logger.info("found process existed after crash");
+        /*let testCollection = '';
+        for (let i = 0; i < testGroup.length; i++) {
+          if (testGroup[i].status === processStates.NotStarted || 
+            testGroup[i].status === processStates.InProgress ) {
+              
+              testCollection += testGroup[i].testId + ',';         
+          } else if(testGroup[i].status === processStates.InProgress) {
+              /// new function
+              //If processId exist in testJob in DB
+              ////do:remove tests that have status pass/fail. this is for retry logic to start where left off
+              //////if found inProgress->
+              //////do:copy over CT and other logs to folder and set folder ending to crashed and remove test from new list
+              //////do:update testjob crashed test in DB.
+              ////else: update testJob status, start time, and processid
+          }    
+        }  */
+        
+        //need to think when found Inprogress after crash what to do
+  
+        //trim last character
+        //testCollection = testCollection.substring(0, testCollection.length - 1);   
+    } 
+  } catch (error) {
+    logger.error(error.stack);
+  } finally {
+    watcher.watchClose();
+  }
+  
     return job;
 };
 
@@ -177,112 +182,6 @@ const stopJob = async (job) => {
      return job;
  };
 
- function decyferGetProcess( proccesses) {
-  try {
-    let newArray = proccesses.raw.split('\n');
-    let foundProcesss = _.remove(newArray, n => {
-      return n.includes('pwsh');
-    });
-    
-    return foundProcesss;  
-  } catch (error) {
-    logger.error(error.stack);
-  }
- }
-
- function findRunningTestJobProcess(pAfter) {
-    try {
-      
-      let tempPAfter = new Array();
-      for (let index = 0; index < pAfter.length; index++) {
-        const element = pAfter[index];
-        const foundInner = element.split(' ');
-        tempPAfter[index] = {'id':Number(foundInner[0]),'proc':foundInner[1], 'date': new Date(foundInner[2] +" "+ foundInner[3])};        
-      }
-
-      //sort inner array by date
-
-      const foundSorted = _.orderBy(tempPAfter,['date'],['desc']);
-      const foundTake = _.take(foundSorted,2);
-      logger.debug(`found process ${foundTake[1].id}`);// 0 process is the pwsh getProcess; 1 is the sim process
-      return foundTake[1];
-    } catch (error) {
-      logger.error(error.stack);
-    }
- }
-
-
-const testTracker = async (job) => {
-  const jobId  = job.data.jobData.jobId;
-  
-  try {
-      logger.info('add job to testTrackerJobQueue');
-      await node.setTimeout(config.get('findPwshProcessDelay'));//this put a gap in pwsh starttime: default 61000
-      let minuteAfter =  decyferGetProcess(await psGetProcess());
-      const testJobProcess = findRunningTestJobProcess(minuteAfter); 
-      
-      // store processId in testJob in DB
-      const formatNewDate = momentz.tz(testJobProcess.date, config.get('timeZone'));
-      await dbUtilities.findAndUpdateJob(jobId, {process: {id: testJobProcess.id, init_date: formatNewDate} });
-     
-      let lastRound = false;
-      //watcherDelay default 65000
-      let watcherDelay = config.get('watcherDelay');
-      while (true) {
-        await watchFolderStatusAndUpdate(jobId);
-        if(lastRound)
-          break;
-
-        let dbJobProcessId = await dbUtilities.getJobFromDb(jobId);
-        dbJobProcessId = dbJobProcessId.process.id;        
-        // watch ProcessID until it does not exist
-        if(!((await psGetProcess()).raw.includes(dbJobProcessId))) {lastRound = true; watcherDelay = 1000;}
-        await node.setTimeout(watcherDelay);
-      }
-
-      //Update JobId status = Complete
-      const completeNewDate = momentz.tz(Date.now(), config.get('timeZone'));
-      await dbUtilities.findAndUpdateJob(jobId, {status: processStates.Completed, trans_date: completeNewDate });
-  } catch (error) {
-    logger.error(error.stack);
-  }
-     
-  return job;
-};
-
-async function watchFolderStatusAndUpdate(jobId) {
-  try {
-        const directoryData = await utilities.readDirectoryDataAndReturnMap(jobId);
-        logger.debug([...directoryData.entries()]);
-        //Get Latest TestJob update from DB
-        let dbJob = await dbUtilities.getJobFromDb(jobId);
-        ///finds tests started after sim process date
-        const dataAfterStartedProcess = await utilities.findTestsStartAfterTestProcess(dbJob.process.init_date, directoryData);
-        //which has status or no status.
-        const splitStatus = await utilities.splitTestStatus(dataAfterStartedProcess);
-        //update status for TC  nostatus
-        const results = await utilities.buildTestResult(splitStatus[0], splitStatus[1], dbJob.testGroup);
-        const compareResults = utilities.compareTestSet(results[0], results[1]);
-        const compareString = compareResults === true? 'Matched-true - tests are not updated to DB': 'UnMatched-false - tests are getting updated to DB';       
-        logger.debug(`compareTest: ${compareString}`);
-        //return count of TC that do not have status.
-        if (results[0].length === results[1].length && !compareResults) {
-          logger.debug("watchFolderStatusAndUpdate() work correctly");
-          await dbUtilities.findAndUpdateJob(jobId,{testGroup: results[1]});
-        } 
-  } catch (error) {
-    logger.error(error.stack);
-  }
-}
-
-function compareTestSet(tOld, tNew) {
-  
-  logger.debug(JSON.stringify(tOld));
-
-  logger.debug(JSON.stringify(tNew));
-
-  return JSON.stringify(tOld) === JSON.stringify(tNew);
-}
 
 
 ///////////////////WORKER JOBS && HANDLERS/////////////////
@@ -292,9 +191,7 @@ const jobHandlers1 = {
 const jobHandlers2 = {
   stopJob: stopJob
 };
-const jobHandlers3 = {
-  testTracker: testTracker
-};
+
 
 
 const proxyObserver = {
@@ -365,16 +262,6 @@ const processJob2 = async (job) => {
       }
   };
 
-//testTracker
-const processJob3 = async (job) => {
-    const handler = jobHandlers3[job.name];    
-  
-      if (handler ) {
-        logger.info(`Processing job: ${job.name}`);
-        await handler(job);
-      }
-  };
-
 ////////////WORKER CREATIONS///////////////////////////
 
 const testWorker = new Worker(
@@ -395,19 +282,7 @@ logger.info("testWorker started!");
 const stopWorker = new Worker("stopJobQueue", processJob2, { connection: redisOptions });
 logger.info("stopJobWorker started!");
 
-const testTrackerWorker = new Worker(
-    "testTrackerJobQueue", 
-    processJob3, 
-    { connection: redisOptions,
-      removeOnComplete: {
-        age: 0,
-        count: 0,
-      },
-      removeOnFail: {
-        age: 0,
-      }
-    });
-logger.info("testTrackerWorker started!");
+
 
 ////////////WORKERS EVENTS///////////////////////////
 
@@ -443,30 +318,15 @@ logger.error(err.stack);
 });
 
 
-testTrackerWorker.on("completed", (job) => {
-//testTrackingJobQueue.remove(job.id);
-logger.info(`testTrackerWorker ${job.id} has completed!`);
-});
-
-testTrackerWorker.on("failed", (job, err) => {
-logger.error(`testTrackerWorker ${job.id} has failed with ${err.message}`);
-});
-
-testTrackerWorker.on('error', err => {
-// log the error
-logger.error(err.stack);
-});
-
-
- 
 //////////////////ADD TO QUEUE//////////////////
 
 const queueBehaviors = config.get('testmode.queueBehaviors') ==="true"?true:false;
 const queueByPass = config.get('testmode.byPassQueue') ==="true"?true:false;
 if (queueBehaviors || queueByPass) {
   setTimeout( async () => {
-    
-    if (await dbUtilities.findInProgressTestJob()) {
+    let foundProcess = await dbUtilities.findInProgressTestJob();
+
+    if (foundProcess.exist) {
       logger.info('front found inprogess Testjob doing nothing');
     } else {      
       logger.info('front did not find inprogess Testjob starting new job');
@@ -480,6 +340,5 @@ if (queueBehaviors || queueByPass) {
 module.exports.redisOptions = redisOptions;
 module.exports.testJobQueue = testJobQueue;
 module.exports.stopJobQueue = stopJobQueue;
-module.exports.testTrackerJobQueue = testTrackerJobQueue;
 module.exports.addTestJobToQueue = addTestJobToQueue;
 module.exports.obliterateJobsQueue = obliterateJobsQueue;

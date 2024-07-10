@@ -1,12 +1,15 @@
 var config = require('config');
 const _ = require('lodash');
-const { logger } = require("./logger.cjs");
-const { processStates } = require('../states/process.states.cjs');
 const node = require('timers/promises');
 const fs = require('node:fs');
 const path = require('node:path');
 const fsPromises = require('node:fs/promises');
-
+const moment = require("moment");
+const momentz = require("moment-timezone");
+const dbUtilities = require('./dbUtilities.cjs');
+const { logger } = require("./logger.cjs");
+const { processStates } = require('../states/process.states.cjs');
+const { psGetProcess } = require('./powershellTools.cjs');
 
 function compareTestSet(tOld, tNew) {
     logger.debug(JSON.stringify(tOld));
@@ -14,11 +17,11 @@ function compareTestSet(tOld, tNew) {
     return JSON.stringify(tOld) === JSON.stringify(tNew);
 }
 
-function readDirectoryDataAndReturnMap(jobId){
+function readDirectoryDataAndReturnMap(){
     return new Promise(async (resolve, reject) => {
         try {
             logger.debug(`Current directory: ${__dirname}`);
-            const dirPath = path.join(__dirname, './../../logs/');
+            const dirPath = path.join(__dirname, config.get('logWatcherPath'));
             let folders = fs.readdirSync(dirPath);
             logger.debug(`found directory: ${dirPath}`); // directories and 2 files      
             logger.debug(`folder last: ${folders.pop()}`); //remove all.log
@@ -200,8 +203,128 @@ function buildTestResult(foundTestNoStatus, foundTestStatus, dbTests) {
     });
 }
 
+function getCommandLineProcessId(jobId) {
+  return new Promise( async (resolve ,reject) => {
+    try {
+      await node.setTimeout(config.get('findPwshProcessDelay'));//this put a gap in pwsh starttime: default 61000
+      let minuteAfter =  decyferGetProcess(await psGetProcess());
+      const testJobProcess = findRunningTestJobProcess(minuteAfter); 
+      
+      // store processId in testJob in DB
+      const formatNewDate = momentz.tz(testJobProcess.date, config.get('timeZone'));
+      const response = await dbUtilities.findAndUpdateJob(jobId, {process: {id: testJobProcess.id, init_date: formatNewDate} });
+      if(response !== null || response !==''){
+        resolve(response);
+      }else{
+        reject('getCommandLineProcessId promise rejected');
+      }     
+    } catch (error) {
+      logger.error(error.stack);
+    }
+  });
+}
+
+function decyferGetProcess( proccesses) {
+  try {
+    let newArray = proccesses.raw.split('\n');
+    let foundProcesss = _.remove(newArray, n => {
+      return n.includes('pwsh');
+    });
+    
+    return foundProcesss;  
+  } catch (error) {
+    logger.error(error.stack);
+  }
+ }
+
+ function findRunningTestJobProcess(pAfter) {
+  try {
+    
+    let tempPAfter = new Array();
+    for (let index = 0; index < pAfter.length; index++) {
+      const element = pAfter[index];
+      const foundInner = element.split(' ');
+      tempPAfter[index] = {'id':Number(foundInner[0]),'proc':foundInner[1], 'date': new Date(foundInner[2] +" "+ foundInner[3])};        
+    }
+
+    //sort inner array by date
+
+    const foundSorted = _.orderBy(tempPAfter,['date'],['desc']);
+    const foundTake = _.take(foundSorted,2);
+    logger.debug(`found process ${foundTake[1].id}`);// 0 process is the pwsh getProcess; 1 is the sim process
+    return foundTake[1];
+  } catch (error) {
+    logger.error(error.stack);
+  }
+}
+
+async function watchFolderStatusAndUpdate(jobId, testJob) {
+  return new Promise(async(resolve, reject) =>{
+    try {
+      const directoryData = await readDirectoryDataAndReturnMap();
+      logger.debug([...directoryData.entries()]);
+      //Get Latest TestJob update from DB
+      //let dbJob = await dbUtilities.getJobFromDb(jobId);
+      let dbJob = testJob
+      ///finds tests started after sim process date
+      const dataAfterStartedProcess = await findTestsStartAfterTestProcess(dbJob.process.init_date, directoryData);
+      //which has status or no status.
+      const splitStatus = await splitTestStatus(dataAfterStartedProcess);
+      //update status for TC  nostatus
+      const results = await buildTestResult(splitStatus[0], splitStatus[1], dbJob.testGroup);
+      const compareResults = compareTestSet(results[0], results[1]);
+      const compareString = compareResults === true? 'Matched-true - tests are not updated to DB': 'UnMatched-false - tests are getting updated to DB';       
+      logger.debug(`compareTest: ${compareString}`);
+      //return count of TC that do not have status.
+      // need to find if all test are complete
+      if (results[0].length === results[1].length && !compareResults) {
+        if(await areAllTestsFinished(dataAfterStartedProcess, testJob)){
+          //Update JobId status = Complete
+          const completeNewDate = momentz.tz(Date.now(), config.get('timeZone'));
+          await dbUtilities.findAndUpdateJob(jobId, { status: processStates.Completed, trans_date: completeNewDate, testGroup: results[1] });
+        } else {
+          logger.debug("watchFolderStatusAndUpdate() work correctly");
+          await dbUtilities.findAndUpdateJob(jobId,{testGroup: results[1]});
+        } 
+      }
+      if (!compareResults) { //change
+        resolve(compareString);
+      } else { //no change
+        reject('watchFolderStatusAndUpdate promise rejected')
+      }
+
+    } catch (error) {
+      logger.error(error.stack);
+    }
+  });
+}
+
+function areAllTestsFinished(folder, dbTests) {
+  return new Promise((resolve, reject) => {
+    let isAllTested = false;
+    for(const test of dbTests.testGroup) {
+      let found = folder.get(test.testId);
+      if(found === undefined) {isAllTested = false; break;}
+      if (found.test.includes('-Pass') || found.test.includes('-Fail') || found.test.includes('-Crash')) {
+        isAllTested = true;
+      } else {
+        isAllTested = false;
+        break;
+      }
+    }
+    
+    if(folder.size !== 0 && dbTests !== null)
+      resolve(isAllTested);
+    else
+      reject('areAllTestsFinished promise rejected');
+  });
+}
+
+//after change remember to update exports
 module.exports.readDirectoryDataAndReturnMap = readDirectoryDataAndReturnMap;
 module.exports.compareTestSet = compareTestSet;
-module.exports.findTestsStartAfterTestProcess =findTestsStartAfterTestProcess;
+module.exports.findTestsStartAfterTestProcess = findTestsStartAfterTestProcess;
 module.exports.splitTestStatus = splitTestStatus;
 module.exports.buildTestResult = buildTestResult;
+module.exports.getCommandLineProcessId = getCommandLineProcessId;
+module.exports.watchFolderStatusAndUpdate =watchFolderStatusAndUpdate;

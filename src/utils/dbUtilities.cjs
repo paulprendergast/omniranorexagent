@@ -69,7 +69,10 @@ function findInProgressTestJob() {
             const found = await jobModel.find(filter).exec();
             let found2 = found.length === 1 ? true: false;
             if (found !== null || found !== '') {
-                resolve(found2);
+                resolve({
+                    job: found[0],
+                    exist: found2
+                });
             } else {
                 reject('findInProgressTestJob promise rejected');
             }
