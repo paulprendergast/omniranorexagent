@@ -294,7 +294,7 @@ testWorker.on("completed", (job) => {
 });
 
 testWorker.on("failed", (job, err) => {
-logger.error(`testWorker ${job.id} has failed with ${err.message}`);
+logger.error(`testWorker has failed with ${err.message}; retry is in the works.`);
 });
 
 testWorker.on('error', err => {
@@ -324,13 +324,18 @@ const queueBehaviors = config.get('testmode.queueBehaviors') ==="true"?true:fals
 const queueByPass = config.get('testmode.byPassQueue') ==="true"?true:false;
 if (queueBehaviors || queueByPass) {
   setTimeout( async () => {
-    let foundProcess = await dbUtilities.findInProgressTestJob();
+    //let foundProcess = await dbUtilities.findInProgressTestJob();
+    let foundStates = await dbUtilities.findInProgressAndNotStartedTestJobs();
 
-    if (foundProcess.exist) {
-      logger.info('front found inprogess Testjob doing nothing');
-    } else {      
-      logger.info('front did not find inprogess Testjob starting new job');
-      addTestJobToQueue();  
+    if (foundStates.inProgressExist) {
+        logger.info('front found inprogess Testjob doing nothing!!!');
+
+    } else if(foundStates.notStartedExist && !foundStates.inProgressExist){
+        logger.info('front did not find inprogess Testjobs but did find NotStarted TestJobs; starting new job');
+        addTestJobToQueue();
+
+    } else { 
+        logger.info('front found no inprogess or notStarted Testjobs; doing nothing!!!'); 
     }
   }, config.get('addToQueueDelay')); 
 }

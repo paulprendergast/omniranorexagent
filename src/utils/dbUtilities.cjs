@@ -54,7 +54,7 @@ function findAndUpdateJob(jobId, statusValue) {
             logger.error(error.stack);
         }
         finally {
-            mongoose.connection.close();
+            await mongoose.connection.close();
         }
     });
 }
@@ -79,9 +79,31 @@ function findInProgressTestJob() {
         } catch (error) {
             logger.error(error.stack);
         } finally {
-            mongoose.connection.close();
+            await mongoose.connection.close();
         }
     });   
+}
+
+function findInProgressAndNotStartedTestJobs(){
+    return new Promise(async (resolve, reject) =>{
+        try {
+            await db();
+            const jobModel = mongoose.model('Jobs', jobSchema);
+            let responseJobs = await jobModel.find({}).sort({ init_date: 'asc'}).exec();
+            const inProgress = _.filter(responseJobs, job => job.status ===  processStates.InProgress);
+            const notStarted = _.filter(responseJobs, job => job.status ===  processStates.NotStarted);
+            let binProgress = inProgress.length > 0? true: false;
+            let bnotStarted = notStarted.length > 0? true: false;
+            resolve({inProgressExist: binProgress, notStartedExist: bnotStarted });
+
+        } catch (error) {
+            reject('findInProgressAndNotStartedTestJobs promise rejected')
+            logger.error(error.stack)
+        }
+        finally {
+            await mongoose.connection.close();
+        }
+    });
 }
 
 function findAll(){
@@ -89,18 +111,17 @@ function findAll(){
         try {
             await db();
             const jobModel = mongoose.model('Jobs', jobSchema);
-            let responseJobs = jobModel.find({});
-            foundJobs = await responseJobs.sort({ init_date: 'asc'});
+            let foundJobs = await jobModel.find({}).sort({ init_date: 'asc'});
             if(foundJobs !== null || foundJobs !== '' ) {
                 resolve(foundJobs);
             } else {
                 reject('findAll promise rejected');
             }
         } catch (error) {
-            logger.error(error);
+            logger.error(error.stack);
         }
         finally {
-            mongoose.connection.close();
+            await mongoose.connection.close();
         } 
     });
 }
@@ -120,7 +141,7 @@ function getJobFromDb(jobId) {
       }catch (error) {
         logger.error(error.stack);
       } finally {
-        mongoose.connection.close();
+        await mongoose.connection.close();
       }
     });
    }
@@ -131,3 +152,4 @@ module.exports.findInProgressTestJob = findInProgressTestJob;
 module.exports.findAndUpdateJob = findAndUpdateJob;
 module.exports.findAll = findAll;
 module.exports.getJobFromDb = getJobFromDb;
+module.exports.findInProgressAndNotStartedTestJobs = findInProgressAndNotStartedTestJobs;

@@ -20,8 +20,8 @@
         "testDurationTime":"-timeout 180",
         "outputLocation":"-testlocation .\\logs\\",
         "_comment1": "queueBehaviors config=true means behaviors add testJob to queue and obliterateJobs will be enabled",
-        "queueBehaviors": "true",
+        "queueBehaviors": "false",
         "_comment2": "byPassQueue=true allow testJobs only to go into queue; use this automation",
-        "byPassQueue": "false"
+        "byPassQueue": "true"
     }
 }

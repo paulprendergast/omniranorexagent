@@ -60,21 +60,7 @@ app.get('/', (req, res) => {
     let newFilterJobs = [];
     (async function firstMongooseGet(){
         try {
-            let responseJobs ='';
-            await db().then(async mongoose => {
-                try {
-                    logger.debug('Loading All Jobs');
-                    const jobModel = mongoose.model('Jobs', jobSchema);
-                    responseJobs = await jobModel.find({}).sort({ init_date: 'asc'}).exec();
-                    
-                }catch (error) {
-                    console.log(error.stack);
-                }finally {
-                    mongoose.connection.close();
-                }
-            }).catch(err =>{ 
-                logger.error(err.stack);
-            });
+            let responseJobs = await dbUtilities.findAll();
 
             if (responseJobs instanceof Array) {
 

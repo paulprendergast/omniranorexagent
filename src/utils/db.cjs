@@ -22,9 +22,9 @@ module.exports = async () => {
 
     try {
         await mongoose.connect(dbUrl, {
-            maxPoolSize: 20, 
+            maxPoolSize: 50, 
             wtimeoutMS: 2500,
-            serverSelectionTimeoutMS: 20000,
+            serverSelectionTimeoutMS: 35000,
         });
     } catch (error) {
         logger.error(`Mongoose DB connect: ${error.stack}`);

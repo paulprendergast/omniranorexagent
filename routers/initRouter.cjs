@@ -22,7 +22,7 @@ initRouter.route('/all')
                 } catch (error) {
                     logger.error(error.stack);
                 } finally {
-                    mongoose.connection.close();
+                    await mongoose.connection.close();
                 }
             }).catch( err => {
                 logger.error(err.stack);
@@ -190,7 +190,7 @@ initRouter.route('/')
                 } catch (error) {
                     console.error(error.stack);
                 } finally {
-                    mongoose.connection.close();
+                    await mongoose.connection.close();
                 }
             }).catch(err =>{
                 logger.error(err.stack);
@@ -216,7 +216,7 @@ initRouter.route('/')
                 } catch (error) {
                     logger.error(error.stack);
                 } finally {
-                    mongoose.connection.close();
+                    await mongoose.connection.close();
                 }
             }).catch(err => {
                 logger.error(err.stack);
@@ -250,7 +250,7 @@ initRouter.route('/')
                 } catch (error) {
                     logger.error(error.stack);
                 } finally {
-                    mongoose.connection.close();
+                    await mongoose.connection.close();
                 }
             }).catch(err => {
                 logger.error(err.stack);

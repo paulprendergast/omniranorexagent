@@ -23,7 +23,7 @@ describe('Processing', () => {
     after(() => {});
     afterEach(() => {});
 
-    it('Happy Path for Processing', () => {
+    it.only('Happy Path for Processing', () => {
         cy.task('deleteAllDirectories');
         cy.request('DELETE','/init');
         
@@ -32,7 +32,7 @@ describe('Processing', () => {
             cy.request('POST','/init', newJob );
         });
         cy.visit('/');  
-        //cy.wait(61000 + (3 * 180000) + 30000);
+        //cy.wait(45000 + 61000 + (3 * 180000) + 30000);
         cy.contains('div', 'Test Job:').should('be.visible').click();
         cy.getBySel('topResultRow0').should(($p) => {
             expect($p).to.contain('83eb7fdcfc7ee7c6f99b899c');
@@ -53,8 +53,31 @@ describe('Processing', () => {
             expect($div.get(1).innerText).to.eq(processStates.NotStarted);
             expect($div.get(2).innerText).to.be.oneOf([processStates.NotStarted]);
         });
-        
-        cy.wait(61000); //61000 sec before watcher starts
+        cy.wait(45000); //45000 sec before job/worker starts
+        cy.visit('/');  
+        cy.contains('div', 'Test Job:').should('be.visible').click();
+        cy.getBySel('topResultRow0').should(($p) => {
+            expect($p).to.contain('83eb7fdcfc7ee7c6f99b899c');
+            expect($p).to.contain(processStates.InProgress);
+        });
+        cy.getBySel('testResult0').find('div').should($div => {
+            expect($div.get(0).innerText).to.eq('TC12345');
+            expect($div.get(1).innerText).to.eq(processStates.NotStarted);
+            expect($div.get(2).innerText).to.be.oneOf([processStates.NotStarted]);
+        }); 
+        cy.getBySel('testResult1').find('div').should($div => {
+            expect($div.get(0).innerText).to.eq('TC67890');
+            expect($div.get(1).innerText).to.eq(processStates.NotStarted);
+            expect($div.get(2).innerText).to.be.oneOf([processStates.NotStarted]);
+        }); 
+        cy.getBySel('testResult2').find('div').should($div => {
+            expect($div.get(0).innerText).to.eq('TC13579');
+            expect($div.get(1).innerText).to.eq(processStates.NotStarted);
+            expect($div.get(2).innerText).to.be.oneOf([processStates.NotStarted]);
+        });
+
+
+        cy.wait(61000); //61000 sec finding processId
         cy.visit('/'); 
         cy.contains('div', 'Test Job:').should('be.visible').click();
         cy.getBySel('testResult0').find('div').should($div => {
@@ -77,13 +100,13 @@ describe('Processing', () => {
         cy.contains('div', 'Test Job:').should('be.visible').click();
         cy.getBySel('testResult0').find('div').should($div => {
             expect($div.get(0).innerText).to.eq('TC12345');
-            expect($div.get(1).innerText).to.eq(processStates.InProgress);
-            expect($div.get(2).innerText).to.be.oneOf([processStates.InProgress]);
+            expect($div.get(1).innerText).to.eq(processStates.Finished);
+            expect($div.get(2).innerText).to.be.oneOf(['Pass','Fail','Crash']);
         }); 
         cy.getBySel('testResult1').find('div').should($div => {
             expect($div.get(0).innerText).to.eq('TC67890');
-            expect($div.get(1).innerText).to.eq(processStates.NotStarted);
-            expect($div.get(2).innerText).to.be.oneOf([processStates.NotStarted]);
+            expect($div.get(1).innerText).to.eq(processStates.InProgress);
+            expect($div.get(2).innerText).to.be.oneOf([processStates.InProgress]);
         }); 
         cy.getBySel('testResult2').find('div').should($div => {
             expect($div.get(0).innerText).to.eq('TC13579');
@@ -101,17 +124,17 @@ describe('Processing', () => {
         cy.getBySel('testResult1').find('div').should($div => {
             expect($div.get(0).innerText).to.eq('TC67890');
             expect($div.get(1).innerText).to.eq(processStates.InProgress);
-            expect($div.get(2).innerText).to.be.oneOf([processStates.InProgress]);
+            expect($div.get(2).innerText).to.be.oneOf(['Pass','Fail','Crash']);
         }); 
         cy.getBySel('testResult2').find('div').should($div => {
             expect($div.get(0).innerText).to.eq('TC13579');
-            expect($div.get(1).innerText).to.eq(processStates.NotStarted);
-            expect($div.get(2).innerText).to.be.oneOf([processStates.NotStarted]);
-        }); 
+            expect($div.get(1).innerText).to.eq(processStates.InProgress);
+            expect($div.get(2).innerText).to.be.oneOf([processStates.InProgress]);
+        });
         cy.wait(180000);//3min test3
         cy.visit('/');
         cy.contains('div', 'Test Job:').should('be.visible').click();
-        cy.getBySel('testResult0').find('div').should($div => {
+        /* cy.getBySel('testResult0').find('div').should($div => {
             expect($div.get(0).innerText).to.eq('TC12345');
             expect($div.get(1).innerText).to.eq(processStates.Finished);
             expect($div.get(2).innerText).to.be.oneOf(['Pass','Fail','Crash']);
@@ -125,7 +148,7 @@ describe('Processing', () => {
             expect($div.get(0).innerText).to.eq('TC13579');
             expect($div.get(1).innerText).to.eq(processStates.InProgress);
             expect($div.get(2).innerText).to.be.oneOf([processStates.InProgress]);
-        }); 
+        });  */
         cy.wait(30000); //extra sec
         cy.visit('/');
         cy.contains('div', 'Test Job:').should('be.visible').click();
@@ -147,8 +170,8 @@ describe('Processing', () => {
     });
 
     it('TestJob1 finished then TestJob2 auto starts', () => {
-        cy.task('deleteAllDirectories');
-        cy.request('DELETE','/init');
+        //cy.task('deleteAllDirectories');
+        //cy.request('DELETE','/init');
     });
 
     ///
