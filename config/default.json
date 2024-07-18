@@ -8,20 +8,19 @@
     "dbUserIdPassword":"UjI4OumE9FlZX1NQ", 
     "dbName": "omniAgents",
     "redisPort": 6379,
-    "addToQueueDelay": 30000,
     "_comment2":"tracker time gap for to processId; requiremend =61000",
     "findPwshProcessDelay":61000,
     "timeZone": "America/Los_Angeles",
-    "watcherDelay":65000,
     "_comment3":"logWatcherpath SimDefault: './../../logs/' from the Util folder to location ",
     "logWatcherPath":"./../../logs/",
+    "CtLogFilePath":"/home/paulp/projects/omniranorexagent/src/Files/",
     "testmode": {
         "fileSimulater": ".\\src\\utils\\scripts\\simulate.ps1",
         "testDurationTime":"-timeout 180",
         "outputLocation":"-testlocation .\\logs\\",
         "_comment1": "queueBehaviors config=true means behaviors add testJob to queue and obliterateJobs will be enabled",
-        "queueBehaviors": "false",
+        "queueBehaviors": "true",
         "_comment2": "byPassQueue=true allow testJobs only to go into queue; use this automation",
-        "byPassQueue": "true"
+        "byPassQueue": "false"
     }
 }

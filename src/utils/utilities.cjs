@@ -3,6 +3,7 @@ const _ = require('lodash');
 const node = require('timers/promises');
 const fs = require('node:fs');
 const path = require('node:path');
+const readline = require('node:readline');
 const fsPromises = require('node:fs/promises');
 const moment = require("moment");
 const momentz = require("moment-timezone");
@@ -10,10 +11,13 @@ const dbUtilities = require('./dbUtilities.cjs');
 const { logger } = require("./logger.cjs");
 const { processStates } = require('../states/process.states.cjs');
 const { psGetProcess } = require('./powershellTools.cjs');
+const { default: mongoose } = require('mongoose');
+const { resolve } = require('path');
+const { default: db } = require('./db.cjs');
 
 function compareTestSet(tOld, tNew) {
-    logger.debug(JSON.stringify(tOld));
-    logger.debug(JSON.stringify(tNew)); 
+    logger.debug(`old: ${JSON.stringify(tOld)}`);
+    logger.debug(`new: ${JSON.stringify(tNew)}`); 
     return JSON.stringify(tOld) === JSON.stringify(tNew);
 }
 
@@ -320,6 +324,273 @@ function areAllTestsFinished(folder, dbTests) {
   });
 }
 
+function  checkingDatabaseStatus(location) {
+  return new Promise(async (resolve, reject) => {
+    const isConnected = await dbUtilities.checkingDatabaseStatusPlusAction();
+    const dist = isConnected === true? true: false;
+    const string  = isConnected ===true? `DB is still connected: ${location}`: `DB is not connected: ${location}`;
+    logger.debug(string);
+    resolve(dist);
+  });
+}
+
+function buildNewNotStartedTestJobList(dbJobId) {
+  return new Promise(async (resolve, reject) => {
+    let newTestList = '';
+    let testGroup = await buildlTestGroupLiteralObject(dbJobId.testGroup);
+    for (let index = 0; index < testGroup.length; index++) {
+
+      if (index === 0 && testGroup[index].workStatus === processStates.NotStarted) { /// first in list. also the first minute
+
+        // search CT log for JT crashed and Rebooting
+        const foundProblem = await searchCtLogForProblem(testGroup[index].start_date, dbJobId.testmode.simulate);
+
+        if(foundProblem.includes('crash')) {
+          if (testGroup.length === 1) { // one test in testgroup
+            logger.debug(`First test status = Notstarted and testgroup == 1; newTestList =[] ; update test status = crash`);
+            newTestList = []
+            testGroup[0].status = processStates.Crash;
+            const completeNewDate = momentz.tz(Date.now(), config.get('timeZone'));
+            testGroup[0].finished_date = completeNewDate;
+            testGroup[0].workStatus = processStates.Crashed
+            //change status date
+            await dbUtilities.findAndUpdateJob(dbJobId.jobId, { trans_date: completeNewDate,  testGroup: testGroup });
+            
+          } else { // many test in testgroup
+            logger.debug(`First test status = Notstarted and testgroup == many  ; newTestList =[shift to many] ; update test status = crash`);
+            newTestList = testGroup.shift();
+            testGroup[0].status = processStates.Crash;
+            const completeNewDate = momentz.tz(Date.now(), config.get('timeZone'));
+            testGroup[0].finished_date = completeNewDate;
+            testGroup[0].workStatus = processStates.Crashed
+            //change status date
+            await dbUtilities.findAndUpdateJob(dbJobId.jobId, { trans_date: completeNewDate,  testGroup: testGroup });
+          }
+          
+          if(dbJobId.process.id ===  null) { // if process data does not exist in DBTestJob. need to go find folder.// change the name for folder to crash
+            logger.debug(`First test status = Notstarted; processId == Null; with first minute find latest test folder and give status = Crash`);
+            const listOfDirectories = await readDirectoryDataAndReturnMap();
+            let listOfFoundTests = new Map();
+            listOfDirectories.array.forEach((value, key, map) => {
+              if(key.includes(testGroup[index])) {
+                listOfFoundTests.set(key, value);
+              }
+            });
+            const finalSort = new Map([...listOfFoundTests.entries()].sort((a, b) => a[1].birthDate - b[1].birthDate));
+            const firstFolder = finalSort.entries().next().value;
+            await fsPromises.rename(firstFolder, `${firstFolder}-${processStates.Crash}`);
+  
+          } else { //else find TC folder after process start date. the date wil be in DB. // change the name for folder to crash
+            logger.debug(`First test status = Notstarted; processId == notNull; find test folder after process start date and give status = Crash`);
+            const listOfDirectories = await readDirectoryDataAndReturnMap();
+            const dataAfterStartedProcess = await findTestsStartAfterTestProcess(dbJobId.process.init_date, listOfDirectories);
+            if(dataAfterStartedProcess.has(testGroup[index])) {
+              const foundFolder = (dataAfterStartedProcess.get(testGroup[index])).test;
+              await fsPromises.rename(foundFolder, `${foundFolder}-${processStates.Crash}`);
+            }
+          } 
+          break; // work is done and tests found
+        }
+        
+      
+      } else if (testGroup[index].workStatus === processStates.InProgress) { // test in list
+        
+          if(index === (testGroup.length - 1)) { ///last in list
+            newTestList = [];
+            //change status date
+            // copy over CT logs to test folder
+            break;
+          } 
+          
+          newTestList = testGroup.slice(index + 1, testGroup.length)
+          //change status date
+          // copy over CT logs to test folder
+          break;
+
+      } 
+    }
+    if(newTestList === '')
+      reject('buildNewNotStartedTestJobList Promose Rejected');
+    resolve(newTestList);
+  });
+}
+
+function buildlTestGroupLiteralObject(testgroup) {
+  return new Promise( (resolve, reject) => {
+    
+    let newObject = [];
+    for(const test of testgroup) {
+      newObject.push({
+        testId: test.testId,
+        start_date: test.start_date,
+        finished_date: test.finished_date,
+        workStatus: test.workStatus,
+        status: test.status
+      });
+    }
+    if(newObject.length > 0){
+      resolve(newObject);
+    } else {
+        reject('buildlTestGroupLiteralObject Promise rejected');
+    }
+  });
+}
+
+function searchCtLogForProblem(testStartDate, simulate) {
+  return new Promise(async (resolve, reject) => {
+    let foundString = 'empty';
+    const isSimulate = simulate === 'true'?true:false
+    try {
+      let newTestStartDate = new Date(testStartDate);
+      newTestStartDate = formatDate(newTestStartDate);
+      let newTime = null;
+      if (isSimulate) { // for simulator
+        //newTime = momentz.tz(testStartDate, config.get('timeZone')).format('HH:mm:ss:SS');
+        newTime = () => {
+          return new Promise( async (resolve, reject) => {
+            let foundFile = getFilesFromPath(config.get('CtLogFilePath'), '.log');
+            let exactFiles = [];
+            foundFile.forEach((s) => { //search for exactFiles by dateformat
+              if(s.includes(newTestStartDate)){
+                exactFiles.push(s);
+              }
+            });
+            
+            const dirPathFile = path.join(config.get('CtLogFilePath'), exactFiles[0]);
+            const fileStream = fs.createReadStream(dirPathFile);
+  
+            const rl = readline.createInterface({
+              input: fileStream,
+              crlfDelay: Infinity,
+            });
+            // Note: we use the crlfDelay option to recognize all instances of CR LF
+            // ('\r\n') in input.txt as a single line break.
+
+            let foundLine = rl[4];
+            foundFile = foundFile.split(' ');
+            const foundTime = foundFile[5];
+
+            rl.close();
+
+            if (foundTime.includes(':')) {
+              resolve(foundTime);
+            } else {
+              reject('searchCtLogForProblem sim newTime Promise Rejected');
+            }
+
+            
+          }); //promise
+        };
+        newTime = new Date(newTime);
+      } else { // for non- simulator
+        newTime = momentz.tz(testStartDate, config.get('timeZone')).format('HH:mm:ss:SS')
+      }
+      //let newtime = momentz.tz(testStartDate, config.get('timeZone')).format('HH:mm:ss:SS')
+      logger.debug(`time: ${newTime}`);
+      
+      
+
+      let foundFile = getFilesFromPath(config.get('CtLogFilePath'), '.log');
+      let exactFiles = [];
+      foundFile.forEach((s) => { //search for exactFiles by dateformat
+        if(s.includes(newTestStartDate)){
+          exactFiles.push(s);
+        }
+      });
+      
+      for(const file of exactFiles) {
+        const dirPathFile = path.join(config.get('CtLogFilePath'), file);
+        logger.debug(`found CT log file: ${file}`);
+
+        const fileStream = fs.createReadStream(dirPathFile);
+  
+        const rl = readline.createInterface({
+          input: fileStream,
+          crlfDelay: Infinity,
+        });
+        // Note: we use the crlfDelay option to recognize all instances of CR LF
+        // ('\r\n') in input.txt as a single line break.
+        const logErrors = ['JT Crashed', 'Exception']
+        for await (const line of rl) {
+          // Each line in input.txt will be successively available here as `line`.
+          if (newtime) {
+            if(line.includes(logErrors[0])){
+              foundString = 'crash';
+              break;
+            } 
+          }
+        }
+        rl.close();
+
+        if(foundString.includes('crash'))
+            break;
+      }
+      logger.info(`Finished searching CT log and found: ${foundString}`);
+
+    } catch (error) {
+      logger.error(error.stack);
+    }
+    
+ 
+    if (foundString !== 'empty') {
+        resolve(foundString);
+    } else {
+        reject('searchCtLogForProblem promise rejected.')
+    }
+  });
+}
+async function renameCtlogFile() {
+
+  let foundFile = getFilesFromPath(config.get('CtLogFilePath'), '.log');
+  foundFile = path.join(config.get('CtLogFilePath'), foundFile[0]);
+  let todaysDate = new Date(Date.now());
+  todaysDate = formatDate(todaysDate);
+  await fsPromises.rename(foundFile, path.join(config.get('CtLogFilePath'),`${todaysDate}.log`));
+}
+
+function formatDate(date) {
+  var d = new Date(date),
+      month = '' + (d.getMonth() + 1),
+      day = '' + d.getDate(),
+      year = d.getFullYear();
+
+  if (month.length < 2) 
+      month = '0' + month;
+  if (day.length < 2) 
+      day = '0' + day;
+
+  return [year, month, day].join('');
+}
+
+function formatDateTime(date) {
+  var d = new Date(date),
+      hours = d.getHours(),
+      mins = d.getMinutes(),
+      sec = d.getSeconds(),
+      mil = d.getMilliseconds();
+
+  if (hours.length < 2) 
+      hours = '0' + hours;
+  if (mins.length < 2) 
+      mins = '0' + mins;
+  if (sec.length < 2) 
+    sec = '0' + sec;
+  if (mil.length < 2) 
+    mil = '0' + mil;
+
+  return [hours, mins, sec, mil].join(':');
+}
+
+function copyCtLogsToProblemTest(distination) {
+  const dirPath = path.join(__dirname, config.get('CtLogFilePath'));
+  let foundFile = getFilesFromPath(dirPath, '.log');
+}
+
+function getFilesFromPath(path, extension) {
+  let files = fs.readdirSync( path );
+  return files.filter( file => file.match(new RegExp(`.*\.(${extension})`, 'ig')));
+}
+
 //after change remember to update exports
 module.exports.readDirectoryDataAndReturnMap = readDirectoryDataAndReturnMap;
 module.exports.compareTestSet = compareTestSet;
@@ -328,3 +599,6 @@ module.exports.splitTestStatus = splitTestStatus;
 module.exports.buildTestResult = buildTestResult;
 module.exports.getCommandLineProcessId = getCommandLineProcessId;
 module.exports.watchFolderStatusAndUpdate =watchFolderStatusAndUpdate;
+module.exports.checkingDatabaseStatus = checkingDatabaseStatus;
+module.exports.buildNewNotStartedTestJobList = buildNewNotStartedTestJobList;
+module.exports.renameCtlogFile = renameCtlogFile;

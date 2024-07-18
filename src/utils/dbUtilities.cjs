@@ -1,6 +1,8 @@
 var config = require('config');
 const _ = require('lodash');
 const db = require('./db.cjs');
+const node = require('timers/promises');
+const utilities = require('./utilities.cjs');
 //const express = require('express');
 //const initRouter = express.Router();
 const { logger } = require("./logger.cjs");
@@ -40,7 +42,7 @@ function filterObject(obj) {
 function findAndUpdateJob(jobId, statusValue) {
     return new Promise( async (resolve,reject) => {
         try {
-            await db();
+            //await db();
             const jobModel = mongoose.model('Jobs', jobSchema);
             const filter = { jobId: jobId};
             const update = statusValue;  
@@ -53,9 +55,9 @@ function findAndUpdateJob(jobId, statusValue) {
         } catch (error) {
             logger.error(error.stack);
         }
-        finally {
+        /* finally {
             await mongoose.connection.close();
-        }
+        } */
     });
 }
 
@@ -63,7 +65,7 @@ function findAndUpdateJob(jobId, statusValue) {
 function findInProgressTestJob() {
     return new Promise(async (resolve, reject) =>{
         try {
-            await db();
+            //await db();
             const jobModel = mongoose.model('Jobs', jobSchema);
             const filter = { status: processStates.InProgress};
             const found = await jobModel.find(filter).exec();
@@ -78,16 +80,17 @@ function findInProgressTestJob() {
             }
         } catch (error) {
             logger.error(error.stack);
-        } finally {
+        } /* finally {
             await mongoose.connection.close();
-        }
+        } */
     });   
 }
 
 function findInProgressAndNotStartedTestJobs(){
     return new Promise(async (resolve, reject) =>{
         try {
-            await db();
+            //await db();
+            checkingDatabaseStatusPlusAction();
             const jobModel = mongoose.model('Jobs', jobSchema);
             let responseJobs = await jobModel.find({}).sort({ init_date: 'asc'}).exec();
             const inProgress = _.filter(responseJobs, job => job.status ===  processStates.InProgress);
@@ -96,20 +99,20 @@ function findInProgressAndNotStartedTestJobs(){
             let bnotStarted = notStarted.length > 0? true: false;
             resolve({inProgressExist: binProgress, notStartedExist: bnotStarted });
 
-        } catch (error) {
+        } catch (error) {           
+            logger.error(error.stack);
             reject('findInProgressAndNotStartedTestJobs promise rejected')
-            logger.error(error.stack)
         }
-        finally {
+        /* finally {
             await mongoose.connection.close();
-        }
+        } */
     });
 }
 
 function findAll(){
     return new Promise( async (resolve, reject) => {
         try {
-            await db();
+            //await db();
             const jobModel = mongoose.model('Jobs', jobSchema);
             let foundJobs = await jobModel.find({}).sort({ init_date: 'asc'});
             if(foundJobs !== null || foundJobs !== '' ) {
@@ -120,16 +123,16 @@ function findAll(){
         } catch (error) {
             logger.error(error.stack);
         }
-        finally {
+        /* finally {
             await mongoose.connection.close();
-        } 
+        }  */
     });
 }
 
 function getJobFromDb(jobId) {
     return new Promise(async (resolve, reject) =>{
       try{
-        await db();
+        //await db();
         const jobModel = mongoose.model('Jobs', jobSchema);
         const filter = { jobId: jobId};
         let responseJobs = await jobModel.findOne(filter);
@@ -140,11 +143,70 @@ function getJobFromDb(jobId) {
         }
       }catch (error) {
         logger.error(error.stack);
-      } finally {
+      } 
+      /* finally {
         await mongoose.connection.close();
-      }
+      } */
     });
    }
+
+   function checkingDatabaseStatusPlusAction(){
+    return new Promise(async (resolve, reject) => {
+      const timer = 5000;
+      if(mongoose.connection.readyState === 0) {//disconnected
+
+        await db();
+        while (true) {
+            logger.debug(`DB was disconnnected; Starting connection: state = ${mongoose.connection.readyState}`);
+            await node.setTimeout(timer);
+            if(mongoose.connection.readyState ===1?true: false)
+                break;
+            await db();
+        } 
+        await node.setTimeout(timer);      
+        resolve(mongoose.connection.readyState ===1?true: false);
+  
+      } else if(mongoose.connection.readyState === 1) { // connected
+
+        logger.debug('DB is connnected; doing nothing');
+        resolve(true);
+
+      } else if(mongoose.connection.readyState === 2) { // connecting
+        
+        while (true) {
+            logger.debug(`DB is connnecting; waiting ${timer} sec`);
+            await node.setTimeout(timer);
+            if(mongoose.connection.readyState ===1?true: false)
+                break;
+        }
+        await node.setTimeout(timer);
+        resolve(mongoose.connection.readyState ===1?true: false);
+
+      }else if(mongoose.connection.readyState === 3){ // disconnecting
+        
+        await db();
+        while (true) {
+            logger.debug(`DB is disconnecting; waiting ${timer} sec`);
+            await node.setTimeout(timer);
+            if(mongoose.connection.readyState ===1?true: false)
+                break;
+            await db();
+        }
+        await node.setTimeout(timer);
+        resolve(mongoose.connection.readyState ===1?true: false);
+
+      }else if(mongoose.connection.readyState === 99) { // uninitized
+        logger.debug(`DB is uninitized; returning false`);
+        reject('checkingDatabaseStatus uninitized Promise Rejected');
+      }
+    });
+  }
+
+  function updateCrashStatus(jobId, newTestGroup) {
+    return new Promise((resolve, reject) => {
+
+    });
+  }
 
 
 module.exports.filterObject = filterObject;
@@ -153,3 +215,5 @@ module.exports.findAndUpdateJob = findAndUpdateJob;
 module.exports.findAll = findAll;
 module.exports.getJobFromDb = getJobFromDb;
 module.exports.findInProgressAndNotStartedTestJobs = findInProgressAndNotStartedTestJobs;
+module.exports.checkingDatabaseStatusPlusAction = checkingDatabaseStatusPlusAction;
+module.exports.updateCrashStatus = updateCrashStatus;

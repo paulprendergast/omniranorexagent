@@ -4,6 +4,9 @@ const fs = require('fs');
 const fsPromises = require('node:fs/promises');
 const path = require('node:path');
 const { logger } = require("./src/utils/logger.cjs");
+const { spawn, exec } = require('node:child_process');
+const { psStartApp } = require('./src/utils/powershellTools.cjs');
+const { trusted } = require("mongoose");
 
 const PORT = config.get("AppPort") || 4051;
 
@@ -41,7 +44,7 @@ module.exports = defineConfig({
             }
             resolve(true);
           });
-        },
+        }, 
       })
     },
   },

@@ -1,0 +1,36 @@
+[
+    {
+        "jobId":"83eb7fdcfc7ee7c6f99b89cc",
+        "parentJobId": "27eb7fdcfc7ee7c6f99b899e",
+        "jobType": "Test",
+        "machineName":"LTAWSDIST193176",
+        "agentIp":"10.116.222.1",
+        "init_date": "2000-01-01T00:00:00.000+00:00",
+        "trans_date": "2000-01-01T00:00:00.000+00:00",
+        "status": "NotStarted",
+        "agentData": {
+            "testSuiteType": "OCCTDist",
+            "simulatorConfig":"AWS",
+            "simulatorPath":"c:\\Program Files (x86)\\OETS\\",
+            "omnicenterIp":"10.6.198.201",
+            "ctip":"10.6.196.88"
+        }, 
+        "process": {
+            "id": "",
+            "init_date": ""
+        },
+        "testmode": {
+            "enabled": "true",
+            "simulate": "true"
+        },
+        "testGroup": [
+            {
+                "testId":"TC12345",
+                "start_date": "2000-01-01T00:00:00.000+00:00",
+                "finished_date": "2000-01-01T00:00:00.000+00:00",
+                "workStatus": "NotStarted",
+                "status": "NotStarted"
+            }
+        ]
+    }
+]

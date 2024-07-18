@@ -23,7 +23,7 @@ foreach($test in $testArray)
     }
     $newTestFolderResult = $test +'-'+ $newDate + '-' + $result;
     Rename-Item -Path $newTestFolderLocation -NewName $newTestFolderResult;
-    Start-Sleep -Seconds 30
+    Start-Sleep -Seconds 15
 }
 $foundPID = get-Process -id $PID;
 return $foundPID;

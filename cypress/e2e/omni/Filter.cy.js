@@ -20,9 +20,11 @@ describe('Filter for the landing page',() => {
       });
     before(() => {
         
-      /// File Default.json
-      /// "byPassQueue": "false"
-      /// "queueBehaviors": "false",
+       /// "byPassQueue": "false"
+       /// "queueBehaviors": "false",
+       ///"testDurationTime":"-timeout 180",
+       ///"findPwshProcessDelay":61000,
+       /// simulate.ps1: last 'Start-Sleep' in file -Seconds 15
     });
     after(() => {
         

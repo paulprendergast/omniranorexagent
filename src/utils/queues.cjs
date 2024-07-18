@@ -20,7 +20,7 @@ const { processStates } = require('../states/process.states.cjs');
 const { logger } = require("./logger.cjs");
 const { PowerShell } = require("node-powershell");
 //const { Observable, observeOn, asyncScheduler } = require("rxjs");
-let watcher = new observer('./logs');
+
 
 const QueueOptions = {
   delay: 5000,
@@ -51,31 +51,39 @@ let trackJobData = {
 };
 
 
-async function addTestJobToQueue() {
+// if add rapid new data, 2 or more the testJob function will read same JobId. have gap when adding.
+async function addTestJobToQueue(newJob) {
   try {
-    logger.info('looking for jobs');
-    let foundJobs = await dbUtilities.findAll()   
+    //await utilities.checkingDatabaseStatus('addTestJobToQueue.Queue.cjs');
+    //logger.info('looking for jobs');
+  /*   let foundJobs = await dbUtilities.findAll()   
     const notStarted = _.filter(foundJobs, {'status': processStates.NotStarted});
     const processing = _.filter(foundJobs, {'status': processStates.Processing});
-    const inProgress = _.filter(foundJobs, {'status': processStates.InProgress});
+    const inProgress = _.filter(foundJobs, {'status': processStates.InProgress}); */
     
+    const testmodeEnabled = newJob.testmode.enabled ==='true'?true:false;
+    const testmodeSimulate = newJob.testmode.simulate ==='true'?true:false;
     //only take 1 job of status = NotStarted; and everything is sorted
-    if (notStarted.length > 0 && (processing.length === 0 || inProgress.length === 0 )) {     
-      testJobData.jobData = foundJobs[0];  
-      trackJobData.jobData = foundJobs[0];  
-      const testmodeEnabled = notStarted[0].testmode.enabled ==='true'?true:false;
-      const testmodeSimulate = notStarted[0].testmode.simulate ==='true'?true:false;
+    if (newJob.status === processStates.NotStarted) {     
+      testJobData.jobData = newJob; 
       
       //takes testmode off or testmode enabled and simulate both true
       if (!testmodeEnabled || (testmodeEnabled && testmodeSimulate)) {
-        logger.info('add job to testTrackerJobQueue');
+        logger.info('add job to testJobQueue');
         await testJobQueue.add(testJobData.name, testJobData, QueueOptions); 
         
       } else { //if testmode enabled = true
           logger.info("Testmode = enabled and Simulate = disabled");
       }   
-    } else {
-        logger.info("There a TestJob inProgress in the queue! app crashed auto retry will come here");
+    } else if(newJob.status === processStates.InProgress ){
+                
+        if (testmodeEnabled && testmodeSimulate) {
+          logger.warn("There a TestJob inProgress in the queue! Simulating app crashed auto retry will come here");
+          testJobData.jobData = newJob;
+          await testJobQueue.add(testJobData.name, testJobData, QueueOptions); 
+        } else {
+          logger.error("There a TestJob inProgress in the queue! This is rejected in Production mode");
+        }
     }
   } catch (error) {
     logger.error(error.stack);
@@ -90,7 +98,11 @@ async function obliterateJobsQueue(){
 
 const testJob = async (job) => {
   //already assume this is first time or continue job
+  logger.debug(`Top of TestJob function`);
+  let watcher = new observer('./logs');
+  await utilities.checkingDatabaseStatus('testJob.Queue.cjs');
   const jobId  = job.data.jobData.jobId;
+  logger.debug(`jobId: ${jobId}`)
   //let dbJobId='';
   let dbJobId = await dbUtilities.getJobFromDb(jobId);
   
@@ -102,9 +114,13 @@ const testJob = async (job) => {
   let testGroup = dbJobId.testGroup;
   const jobStatusNotStarted  = dbJobId.status === processStates.NotStarted? true:false;
   const jobStatusInProgress  = dbJobId.status === processStates.InProgress? true:false;
+
   watcher.watchFolder();
+  logger.debug(`jobStatusNotStarted = ${jobStatusNotStarted}`);
   try {
+
     if (jobStatusNotStarted) { //job status = NotStarted// starting new TestJob
+      logger.debug(`jobStatusNotStarted = true`);
       let testCollection = '';
       for (let index = 0; index < testGroup.length; index++) {     
         testCollection += testGroup[index].testId + ',';      
@@ -115,6 +131,7 @@ const testJob = async (job) => {
       try {
         if (testmodeSimulate) { //using simulate
           //const newDate = Date.now();//YYYY-MM-DDTHH:mm:ss.sssZ
+          logger.debug(`testmodeSimulate = true`);
           const formatNewDate = momentz.tz(Date.now(), config.get('timeZone'));
           logger.debug(formatNewDate.toString());
           await dbUtilities.findAndUpdateJob(dbJobId.jobId, {
@@ -139,31 +156,21 @@ const testJob = async (job) => {
       } 
     } else if(jobStatusInProgress) { //found job in queue will retry
         logger.info("found process existed after crash");
-        /*let testCollection = '';
-        for (let i = 0; i < testGroup.length; i++) {
-          if (testGroup[i].status === processStates.NotStarted || 
-            testGroup[i].status === processStates.InProgress ) {
-              
-              testCollection += testGroup[i].testId + ',';         
-          } else if(testGroup[i].status === processStates.InProgress) {
-              /// new function
-              //If processId exist in testJob in DB
-              ////do:remove tests that have status pass/fail. this is for retry logic to start where left off
-              //////if found inProgress->
-              //////do:copy over CT and other logs to folder and set folder ending to crashed and remove test from new list
-              //////do:update testjob crashed test in DB.
-              ////else: update testJob status, start time, and processid
-          }    
-        }  */
+
+        //find test InProgress.
+        const newList = await utilities.buildNewNotStartedTestJobList(dbJobId);
+
+        
         
         //need to think when found Inprogress after crash what to do
   
-        //trim last character
-        //testCollection = testCollection.substring(0, testCollection.length - 1);   
+   
     } 
   } catch (error) {
     logger.error(error.stack);
   } finally {
+
+    mongoose.connection.close();
     watcher.watchClose();
   }
   
@@ -172,6 +179,7 @@ const testJob = async (job) => {
 
 const stopJob = async (job) => {
  
+  await utilities.checkingDatabaseStatus('stopJob.Queue.cjs');
     const name  = job.data.jobData.name;
   for (let index = 0; index < 3; index++) {
  
@@ -247,7 +255,7 @@ const processJob = async (job) => {
   const handler = jobHandlers1[job.name];
 
     if (handler ) {
-      logger.info(`Processing job: ${job.name}`);
+      logger.info(`Processing TestJob: ${job.name}`);
       await handler(job);
     }
 };
@@ -257,7 +265,7 @@ const processJob2 = async (job) => {
     const handler = jobHandlers2[job.name];
   
       if (handler ) {
-        logger.info(`Processing job: ${job.name}`);
+        logger.info(`Processing StopJob: ${job.name}`);
         await handler(job);
       }
   };
@@ -320,25 +328,6 @@ logger.error(err.stack);
 
 //////////////////ADD TO QUEUE//////////////////
 
-const queueBehaviors = config.get('testmode.queueBehaviors') ==="true"?true:false;
-const queueByPass = config.get('testmode.byPassQueue') ==="true"?true:false;
-if (queueBehaviors || queueByPass) {
-  setTimeout( async () => {
-    //let foundProcess = await dbUtilities.findInProgressTestJob();
-    let foundStates = await dbUtilities.findInProgressAndNotStartedTestJobs();
-
-    if (foundStates.inProgressExist) {
-        logger.info('front found inprogess Testjob doing nothing!!!');
-
-    } else if(foundStates.notStartedExist && !foundStates.inProgressExist){
-        logger.info('front did not find inprogess Testjobs but did find NotStarted TestJobs; starting new job');
-        addTestJobToQueue();
-
-    } else { 
-        logger.info('front found no inprogess or notStarted Testjobs; doing nothing!!!'); 
-    }
-  }, config.get('addToQueueDelay')); 
-}
 
 
 //////////////////EXPORT////////////////////////////

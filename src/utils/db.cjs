@@ -7,7 +7,7 @@ const dbUrl =
 
 //const PORT = config.get("AppPort") || 4051;
 
-module.exports = async () => {
+module.exports = () => {
     
     mongoose.connection.on('error',(error) => logger.error("Mongoose DB connection error: " + error));
     //mongoose.connection.on('open', () => logger.info('Mongoose DB open'));
@@ -20,14 +20,17 @@ module.exports = async () => {
         logger.info('Connected to the mongo DB via Mongoose');
     });
 
-    try {
-        await mongoose.connect(dbUrl, {
+    return new Promise(async (resolve, reject) =>{
+        mongoose.connect(dbUrl, {
             maxPoolSize: 50, 
             wtimeoutMS: 2500,
             serverSelectionTimeoutMS: 35000,
+        }).then(() => {
+            resolve(mongoose);
+    
+        }).catch(err => {
+            logger.debug(err.stack);
+            reject('Mongoose DB Promise Connection Rejected');
         });
-    } catch (error) {
-        logger.error(`Mongoose DB connect: ${error.stack}`);
-    }
-    return mongoose;
+    });
 };

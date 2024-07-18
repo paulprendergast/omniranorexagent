@@ -13,6 +13,10 @@ describe('Navigation to Apis', () => {
       /// File Default.json
       /// "byPassQueue": "false"
       /// "queueBehaviors": "false",
+      ///"testDurationTime":"-timeout 180",
+      ///"findPwshProcessDelay":61000,
+      /// simulate.ps1: last 'Start-Sleep' in file -Seconds 15
+
     });
     afterEach(() => {});
     after(() => {});
@@ -20,6 +24,13 @@ describe('Navigation to Apis', () => {
     it('Visit to root', () => {
         cy.visit('/');
         cy.getBySel('header-title').should('contain','Omni Ranorex Agent'); 
+    });
+
+    it('Main Screen will load slow because of DB needs to auto connect if no NotStarted or no InProgress TestJobs exist', () => {
+      cy.visit('/');
+      cy.getBySel('header-title').should('contain','Omni Ranorex Agent');
+      cy.visit('/');
+      cy.getBySel('header-title').should('contain','Omni Ranorex Agent');
     });
 
     it('Perform Init DELETE and validate root page', () => {
@@ -174,7 +185,7 @@ describe('Navigation to Apis', () => {
       });
     });
 
-    it('Alter Job on Screate Request PUT', () => {    
+    it('Alter Job on create Request PUT', () => {    
       cy.fixture('job').then((json) => {
         let newJob = json;       
         newJob[0].status = processStates.NotStarted        
@@ -195,6 +206,5 @@ describe('Navigation to Apis', () => {
       cy.getBySel('accordion-header').parent().find('h2').eq(0).contains(processStates.InProgress);
     });
 
-    
- 
+  
 });

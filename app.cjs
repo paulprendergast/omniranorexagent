@@ -8,17 +8,17 @@ const app = express();
 const db = require('./src/utils/db.cjs');
 const bodyParser = require('body-parser');
 const dbUtilities = require('./src/utils/dbUtilities.cjs');
+const utilities = require('./src/utils/utilities.cjs');
 const _ = require('lodash');
 const { morganMiddleware } = require("./src/middleware/morgan.middleware.cjs");
 const { logger } = require("./src/utils/logger.cjs");
 const { initRouter } = require('./routers/initRouter.cjs');
 const { MongoClient } = require('mongodb');
-//const { default: mongoose } = require('mongoose');
 const { jobSchema } = require('./src/models/job.cjs');
 const { exceptions } = require('winston');
 const { processStates } = require('./src/states/process.states.cjs');
 //const { findInProgressTestJob } = require('./src/utils/db.cjs');
-//const { default: mongoose } = require('mongoose');
+const { default: mongoose } = require('mongoose');
 const { obliterateJobsQueue } = require('./src/utils/queues.cjs');
 require('events').EventEmitter.defaultMaxListeners = 25;
 
@@ -59,7 +59,9 @@ app.get('/', (req, res) => {
     logger.info("Checking the API status: Everything is OK");
     let newFilterJobs = [];
     (async function firstMongooseGet(){
+        
         try {
+            await utilities.checkingDatabaseStatus('GET app.cjs');
             let responseJobs = await dbUtilities.findAll();
 
             if (responseJobs instanceof Array) {
@@ -75,6 +77,12 @@ app.get('/', (req, res) => {
         } catch (error) {
             logger.error(error.stack);
         }
+        finally {
+            const foundStates = await dbUtilities.findInProgressAndNotStartedTestJobs();
+            if(!foundStates.notStartedExist && !foundStates.inProgressExist) {
+                mongoose.connection.close();
+            }
+        }
         
     }()).catch( err => { 
         logger.error(err.stack);});   
@@ -84,7 +92,15 @@ app.listen(PORT, () => {
     logger.info(`Listening on port: ${PORT}`);
 });
 
+
+
 const queueBehaviors = config.get('testmode.queueBehaviors') ==="true"?true:false;
 if (queueBehaviors) {   
     obliterateJobsQueue();
 }
+const byPassQueue = config.get('testmode.byPassQueue') === "true"?true:false;
+if(byPassQueue){
+    utilities.renameCtlogFile();
+}
+
+
