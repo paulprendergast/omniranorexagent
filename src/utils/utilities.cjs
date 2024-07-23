@@ -335,12 +335,12 @@ function  checkingDatabaseStatus(location) {
 }
 
 // status[status, workStatus]
-function updatingTestGroupStatus(status, testGroup) {
+function updatingTestGroupStatus(index, status, testGroup) {
   return new Promise( async (resolve, reject) => {
-    testGroup[0].status = status[0];
+    testGroup[index].status = status[0];
     const completeNewDate = momentz.tz(Date.now(), config.get('timeZone'));
-    testGroup[0].finished_date = completeNewDate;
-    testGroup[0].workStatus = status[1];
+    testGroup[index].finished_date = completeNewDate;
+    testGroup[index].workStatus = status[1];
     //change status date
     await dbUtilities.findAndUpdateJob(dbJobId.jobId, { trans_date: completeNewDate,  testGroup: testGroup }); 
     if( testGroup.length === 1){
@@ -396,15 +396,20 @@ function buildNewNotStartedTestJobList(dbJobId) {
     let testGroup = await buildlTestGroupLiteralObject(dbJobId.testGroup);
     for (let index = 0; index < testGroup.length; index++) {
 
-      if (index === 0 && testGroup[index].workStatus === processStates.NotStarted) { /// first in list. also the first minute
+      if (testGroup[index].workStatus === processStates.NotStarted) { /// first in list. also the first minute
 
+        // if Simulate create folder.
+        const isSimulate = dbJobId.testmode.simulate ==='true'?true:false;
+        if(isSimulate){
+          
+        }
         // search CT log for JT crashed and Rebooting
         const foundProblem = await searchCtLogForProblem(testGroup[index].start_date, dbJobId.testmode.simulate);
 
         if(foundProblem.includes('crash')) {
           if (testGroup.length === 1) { // one test in testgroup
             logger.debug(`First test status = Notstarted and testgroup == 1; newTestList =[] ; update test status = crash`);
-            await updatingTestGroupStatus([processStates.Crash, processStates.Crashed], testGroup);
+            await updatingTestGroupStatus(index, [processStates.Crash, processStates.Crashed], testGroup);
             newTestList = [];
            /*  testGroup[0].status = processStates.Crash;
             const completeNewDate = momentz.tz(Date.now(), config.get('timeZone'));
@@ -413,16 +418,23 @@ function buildNewNotStartedTestJobList(dbJobId) {
             //change status date
             await dbUtilities.findAndUpdateJob(dbJobId.jobId, { trans_date: completeNewDate,  testGroup: testGroup }); */
             
-          } else { // many test in testgroup
+          } else { // many test in testgroup; in gap before not started and after last test status
             logger.debug(`First test status = Notstarted and testgroup == many  ; newTestList =[shift to many] ; update test status = crash`);
-            newTestList = testGroup.shift();
+            
+            //what if the last test Crashed in the list
+            if (index === (testGroup.length - 1)) {
+              newTestList = []
+            } else {
+              newTestList = testGroup.shift();
+
+            }
 /*             testGroup[0].status = processStates.Crash;
             const completeNewDate = momentz.tz(Date.now(), config.get('timeZone'));
             testGroup[0].finished_date = completeNewDate;
             testGroup[0].workStatus = processStates.Crashed
             //change status date
             await dbUtilities.findAndUpdateJob(dbJobId.jobId, { trans_date: completeNewDate,  testGroup: testGroup }); */
-            await updatingTestGroupStatus([processStates.Crash, processStates.Crashed], testGroup);
+            await updatingTestGroupStatus(index, [processStates.Crash, processStates.Crashed], testGroup);
           }
           
           if(dbJobId.process.id ===  null) { // if process data does not exist in DBTestJob. need to go find folder.// change the name for folder to crash
@@ -452,7 +464,7 @@ function buildNewNotStartedTestJobList(dbJobId) {
           } 
           break; // work is done and tests found
         } else { // this means that automation may cause crash.
-          logger.warn('Did not find crash; this means that automation may cause crash.');
+          logger.warn('Did not find crash; NotStarted; this means that automation may cause crash.');
           if(testGroup.length === 1){ // one test in testgroup
             logger.debug(`First test status = Notstarted and testgroup == 1; newTestList =[] ; update test status = Not Crash`);
             newTestList = []
@@ -462,7 +474,7 @@ function buildNewNotStartedTestJobList(dbJobId) {
             testGroup[0].workStatus = processStates.Finished;
             //change status date
             await dbUtilities.findAndUpdateJob(dbJobId.jobId, { trans_date: completeNewDate,  testGroup: testGroup }); */
-            await updatingTestGroupStatus(['*' + processStates.Fail, processStates.Finished], testGroup);
+            await updatingTestGroupStatus( index, ['*' + processStates.Fail, processStates.Finished], testGroup);
           } else { // many test in testgroup
 
             logger.debug(`First test status = Notstarted and testgroup == many  ; newTestList =[shift to many] ; update test status = Not Crash`);
@@ -473,7 +485,7 @@ function buildNewNotStartedTestJobList(dbJobId) {
             testGroup[0].workStatus = processStates.Finished
             //change status date
             await dbUtilities.findAndUpdateJob(dbJobId.jobId, { trans_date: completeNewDate,  testGroup: testGroup }); */
-            await updatingTestGroupStatus(['*' + processStates.Fail, processStates.Finished], testGroup);
+            await updatingTestGroupStatus( index, ['*' + processStates.Fail, processStates.Finished], testGroup);
           }
 
           if(dbJobId.process.id ===  null){ // if process data does not exist in DBTestJob. need to go find folder.// change the name for folder to crash
@@ -489,20 +501,38 @@ function buildNewNotStartedTestJobList(dbJobId) {
       
       } else if (testGroup[index].workStatus === processStates.InProgress) { // test in list
         
+        const foundProblem = await searchCtLogForProblem(testGroup[index].start_date, dbJobId.testmode.simulate);
+
+        if(foundProblem.includes('crash')) {
           if(index === (testGroup.length - 1)) { ///last in list
             newTestList = [];
             //change status date
             // copy over CT logs to test folder
             break;
-          } 
-          
-          newTestList = testGroup.slice(index + 1, testGroup.length)
-          //change status date
-          // copy over CT logs to test folder
-          break;
+          } else { //many in list
+            newTestList = testGroup.slice(index + 1, testGroup.length);
+            //change status date
+            // copy over CT logs to test folder
+            break;
+          }
 
-      } 
-    }
+        } else { // this means that automation may cause crash.
+          logger.warn('Did not find crash; InProgress; this means that automation may cause crash.');
+          if(index === (testGroup.length - 1)) { ///last in list
+            newTestList = [];
+            //change status date
+            // copy over CT logs to test folder
+            break;
+          } else { //many in list
+            newTestList = testGroup.slice(index + 1, testGroup.length);
+            //change status date
+            // copy over CT logs to test folder
+            break;
+          }
+        }
+  
+      } //end of inProgress
+    } // end of loop
     if(newTestList === '')
       reject('buildNewNotStartedTestJobList Promose Rejected');
     resolve(newTestList);
