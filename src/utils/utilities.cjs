@@ -390,6 +390,21 @@ function updateFolderAfterProcessRetry(testGroupValue, dbJobId) {
   });
 }
 
+function buildSimulateRetryFolder(test){
+  return new Promise( async ( resolve, reject) => {
+    try {
+      const date = new Date(Date.now());
+      const newFolder = `${test}-${date.getHours()}-${date.getMinutes()}`;
+      let folderAbsolute = path.join(config.get('logWatcherPath'), newFolder);
+      await fsPromises.mkdir(folderAbsolute);
+      resolve();
+    } catch (error) {
+      logger.error(error.stack);
+      reject('buildSimulateRetryFolder promise rejected');
+    }
+  });
+}
+
 function buildNewNotStartedTestJobList(dbJobId) {
   return new Promise(async (resolve, reject) => {
     let newTestList = '';
@@ -401,7 +416,7 @@ function buildNewNotStartedTestJobList(dbJobId) {
         // if Simulate create folder.
         const isSimulate = dbJobId.testmode.simulate ==='true'?true:false;
         if(isSimulate){
-
+          await buildSimulateRetryFolder(testGroup[index].testId);
         }
         // search CT log for JT crashed and Rebooting
         const foundProblem = await searchCtLogForProblem(testGroup[index].start_date, dbJobId.testmode.simulate);
@@ -504,7 +519,7 @@ function buildNewNotStartedTestJobList(dbJobId) {
         // if Simulate create folder.
         const isSimulate = dbJobId.testmode.simulate ==='true'?true:false;
         if(isSimulate){
-          
+          await buildSimulateRetryFolder(testGroup[index].testId);
         }
         const foundProblem = await searchCtLogForProblem(testGroup[index].start_date, dbJobId.testmode.simulate);
 
