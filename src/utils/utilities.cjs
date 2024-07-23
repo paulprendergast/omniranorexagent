@@ -401,7 +401,7 @@ function buildNewNotStartedTestJobList(dbJobId) {
         // if Simulate create folder.
         const isSimulate = dbJobId.testmode.simulate ==='true'?true:false;
         if(isSimulate){
-          
+
         }
         // search CT log for JT crashed and Rebooting
         const foundProblem = await searchCtLogForProblem(testGroup[index].start_date, dbJobId.testmode.simulate);
@@ -501,6 +501,11 @@ function buildNewNotStartedTestJobList(dbJobId) {
       
       } else if (testGroup[index].workStatus === processStates.InProgress) { // test in list
         
+        // if Simulate create folder.
+        const isSimulate = dbJobId.testmode.simulate ==='true'?true:false;
+        if(isSimulate){
+          
+        }
         const foundProblem = await searchCtLogForProblem(testGroup[index].start_date, dbJobId.testmode.simulate);
 
         if(foundProblem.includes('crash')) {
