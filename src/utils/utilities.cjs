@@ -334,6 +334,62 @@ function  checkingDatabaseStatus(location) {
   });
 }
 
+// status[status, workStatus]
+function updatingTestGroupStatus(status, testGroup) {
+  return new Promise( async (resolve, reject) => {
+    testGroup[0].status = status[0];
+    const completeNewDate = momentz.tz(Date.now(), config.get('timeZone'));
+    testGroup[0].finished_date = completeNewDate;
+    testGroup[0].workStatus = status[1];
+    //change status date
+    await dbUtilities.findAndUpdateJob(dbJobId.jobId, { trans_date: completeNewDate,  testGroup: testGroup }); 
+    if( testGroup.length === 1){
+      resolve();
+    }   
+    else {
+      reject('updatingTestGroupLengthOne Promise reject');
+    }   
+  });
+}
+
+function updateFolderBeforeProcessRetry(testGroup) {
+  return new Promise ( async (resolve, reject) =>{
+    try {
+      const listOfDirectories = await readDirectoryDataAndReturnMap();
+      let listOfFoundTests = new Map();
+      listOfDirectories.array.forEach((value, key, map) => {
+        if(key.includes(testGroup[index])) {
+          listOfFoundTests.set(key, value);
+        }
+      });
+      const finalSort = new Map([...listOfFoundTests.entries()].sort((a, b) => a[1].birthDate - b[1].birthDate));
+      const firstFolder = finalSort.entries().next().value;
+      await fsPromises.rename(firstFolder, `${firstFolder}-${processStates.Crash}`);
+      resolve();
+    } catch (error) {
+        logger.error(error.stack);
+        reject('updateFolderForRetry promise rejected');
+    }
+  });
+}
+
+function updateFolderAfterProcessRetry(testGroupValue, dbJobId) {
+  return new Promise(async (resolve, reject) => {
+    try {
+      const listOfDirectories = await readDirectoryDataAndReturnMap();
+      const dataAfterStartedProcess = await findTestsStartAfterTestProcess(dbJobId.process.init_date, listOfDirectories);
+      if(dataAfterStartedProcess.has(testGroupValue)) {
+        const foundFolder = (dataAfterStartedProcess.get(testGroupValue)).test;
+        await fsPromises.rename(foundFolder, `${foundFolder}-${processStates.Crash}`);
+        resolve();
+      }
+      reject('updateFolderBeforeProcessRetry promise reject');
+    } catch (error) {
+      logger.error(error.stack);
+    }
+  });
+}
+
 function buildNewNotStartedTestJobList(dbJobId) {
   return new Promise(async (resolve, reject) => {
     let newTestList = '';
@@ -348,28 +404,30 @@ function buildNewNotStartedTestJobList(dbJobId) {
         if(foundProblem.includes('crash')) {
           if (testGroup.length === 1) { // one test in testgroup
             logger.debug(`First test status = Notstarted and testgroup == 1; newTestList =[] ; update test status = crash`);
-            newTestList = []
-            testGroup[0].status = processStates.Crash;
+            await updatingTestGroupStatus([processStates.Crash, processStates.Crashed], testGroup);
+            newTestList = [];
+           /*  testGroup[0].status = processStates.Crash;
             const completeNewDate = momentz.tz(Date.now(), config.get('timeZone'));
             testGroup[0].finished_date = completeNewDate;
             testGroup[0].workStatus = processStates.Crashed
             //change status date
-            await dbUtilities.findAndUpdateJob(dbJobId.jobId, { trans_date: completeNewDate,  testGroup: testGroup });
+            await dbUtilities.findAndUpdateJob(dbJobId.jobId, { trans_date: completeNewDate,  testGroup: testGroup }); */
             
           } else { // many test in testgroup
             logger.debug(`First test status = Notstarted and testgroup == many  ; newTestList =[shift to many] ; update test status = crash`);
             newTestList = testGroup.shift();
-            testGroup[0].status = processStates.Crash;
+/*             testGroup[0].status = processStates.Crash;
             const completeNewDate = momentz.tz(Date.now(), config.get('timeZone'));
             testGroup[0].finished_date = completeNewDate;
             testGroup[0].workStatus = processStates.Crashed
             //change status date
-            await dbUtilities.findAndUpdateJob(dbJobId.jobId, { trans_date: completeNewDate,  testGroup: testGroup });
+            await dbUtilities.findAndUpdateJob(dbJobId.jobId, { trans_date: completeNewDate,  testGroup: testGroup }); */
+            await updatingTestGroupStatus([processStates.Crash, processStates.Crashed], testGroup);
           }
           
           if(dbJobId.process.id ===  null) { // if process data does not exist in DBTestJob. need to go find folder.// change the name for folder to crash
             logger.debug(`First test status = Notstarted; processId == Null; with first minute find latest test folder and give status = Crash`);
-            const listOfDirectories = await readDirectoryDataAndReturnMap();
+            /* const listOfDirectories = await readDirectoryDataAndReturnMap();
             let listOfFoundTests = new Map();
             listOfDirectories.array.forEach((value, key, map) => {
               if(key.includes(testGroup[index])) {
@@ -378,19 +436,55 @@ function buildNewNotStartedTestJobList(dbJobId) {
             });
             const finalSort = new Map([...listOfFoundTests.entries()].sort((a, b) => a[1].birthDate - b[1].birthDate));
             const firstFolder = finalSort.entries().next().value;
-            await fsPromises.rename(firstFolder, `${firstFolder}-${processStates.Crash}`);
+            await fsPromises.rename(firstFolder, `${firstFolder}-${processStates.Crash}`); */
+            await updateFolderBeforeProcessRetry(testGroup);
   
           } else { //else find TC folder after process start date. the date wil be in DB. // change the name for folder to crash
             logger.debug(`First test status = Notstarted; processId == notNull; find test folder after process start date and give status = Crash`);
-            const listOfDirectories = await readDirectoryDataAndReturnMap();
+/*             const listOfDirectories = await readDirectoryDataAndReturnMap();
             const dataAfterStartedProcess = await findTestsStartAfterTestProcess(dbJobId.process.init_date, listOfDirectories);
             if(dataAfterStartedProcess.has(testGroup[index])) {
               const foundFolder = (dataAfterStartedProcess.get(testGroup[index])).test;
               await fsPromises.rename(foundFolder, `${foundFolder}-${processStates.Crash}`);
-            }
+            } */
+            await updateFolderAfterProcessRetry(testGroup[index], dbJobId);
+            
           } 
           break; // work is done and tests found
+        } else { // this means that automation may cause crash.
+          logger.warn('Did not find crash; this means that automation may cause crash.');
+          if(testGroup.length === 1){ // one test in testgroup
+            logger.debug(`First test status = Notstarted and testgroup == 1; newTestList =[] ; update test status = Not Crash`);
+            newTestList = []
+            /* testGroup[0].status = `*${processStates.Fail}`;
+            const completeNewDate = momentz.tz(Date.now(), config.get('timeZone'));
+            testGroup[0].finished_date = completeNewDate;
+            testGroup[0].workStatus = processStates.Finished;
+            //change status date
+            await dbUtilities.findAndUpdateJob(dbJobId.jobId, { trans_date: completeNewDate,  testGroup: testGroup }); */
+            await updatingTestGroupStatus(['*' + processStates.Fail, processStates.Finished], testGroup);
+          } else { // many test in testgroup
+
+            logger.debug(`First test status = Notstarted and testgroup == many  ; newTestList =[shift to many] ; update test status = Not Crash`);
+            newTestList = testGroup.shift();
+            /* testGroup[0].status = `*${processStates.Fail}`;
+            const completeNewDate = momentz.tz(Date.now(), config.get('timeZone'));
+            testGroup[0].finished_date = completeNewDate;
+            testGroup[0].workStatus = processStates.Finished
+            //change status date
+            await dbUtilities.findAndUpdateJob(dbJobId.jobId, { trans_date: completeNewDate,  testGroup: testGroup }); */
+            await updatingTestGroupStatus(['*' + processStates.Fail, processStates.Finished], testGroup);
+          }
+
+          if(dbJobId.process.id ===  null){ // if process data does not exist in DBTestJob. need to go find folder.// change the name for folder to crash
+            logger.debug(`First test status = Notstarted; processId == Null; with first minute find latest test folder and give status = not Crash`);
+            await updateFolderBeforeProcessRetry(testGroup);
+          } else { //else find TC folder after process start date. the date wil be in DB. // change the name for folder to crash
+            logger.debug(`First test status = Notstarted; processId == notNull; find test folder after process start date and give status = not Crash`);
+            await updateFolderAfterProcessRetry(testGroup[index], dbJobId);
+          }
         }
+
         
       
       } else if (testGroup[index].workStatus === processStates.InProgress) { // test in list
@@ -437,7 +531,7 @@ function buildlTestGroupLiteralObject(testgroup) {
 }
 
 function searchCtLogForProblem(testStartDate, simulate) {
-  return new Promise(async (resolve, reject) => {
+  return new Promise( async (resolve, reject) => {
     let foundString = 'empty';
     const isSimulate = simulate === 'true'?true:false
     try {
@@ -465,25 +559,37 @@ function searchCtLogForProblem(testStartDate, simulate) {
             });
             // Note: we use the crlfDelay option to recognize all instances of CR LF
             // ('\r\n') in input.txt as a single line break.
-
-            let foundLine = rl[4];
-            foundFile = foundFile.split(' ');
-            const foundTime = foundFile[5];
+            let count = 0;
+            let foundLine = '';
+            for await (const line of rl) {
+              if (count === 4) {
+                foundFile = line.split(' ');
+                foundFile = foundFile[0];
+                foundFile = foundFile.split('\t');
+                foundFile = foundFile[4];
+                break;
+              }
+              count++;
+            }
 
             rl.close();
 
-            if (foundTime.includes(':')) {
-              resolve(foundTime);
+            if (foundFile.includes(':')) {
+              resolve(foundFile);
             } else {
               reject('searchCtLogForProblem sim newTime Promise Rejected');
             }
-
-            
+ 
           }); //promise
         };
-        newTime = new Date(newTime);
+
+        const foundTime = (await newTime()).split(':');
+        //new Date(year, monthIndex, day, hours, minutes, seconds, milliseconds)
+        const splitSecMil = foundTime[2].split('.');
+        const buildNewDate = new Date(testStartDate.getFullYear(), testStartDate.getMonth(), testStartDate.getDay(), foundTime[0], foundTime[1], splitSecMil[0], splitSecMil[1]);
+        newTime = momentz.tz(buildNewDate, config.get('timeZone')).format('HH:mm:ss:SS')
       } else { // for non- simulator
-        newTime = momentz.tz(testStartDate, config.get('timeZone')).format('HH:mm:ss:SS')
+        newTime = momentz.tz(testStartDate, config.get('timeZone')).format('HH:mm:ss:SS');// folder create birthdate
       }
       //let newtime = momentz.tz(testStartDate, config.get('timeZone')).format('HH:mm:ss:SS')
       logger.debug(`time: ${newTime}`);
@@ -513,7 +619,8 @@ function searchCtLogForProblem(testStartDate, simulate) {
         const logErrors = ['JT Crashed', 'Exception']
         for await (const line of rl) {
           // Each line in input.txt will be successively available here as `line`.
-          if (newtime) {
+          logger.debug(`line: ${line}`);
+          if ( await readLineTime(line, testStartDate) > newTime) {
             if(line.includes(logErrors[0])){
               foundString = 'crash';
               break;
@@ -526,17 +633,42 @@ function searchCtLogForProblem(testStartDate, simulate) {
             break;
       }
       logger.info(`Finished searching CT log and found: ${foundString}`);
+      resolve(foundString);
 
     } catch (error) {
       logger.error(error.stack);
+      reject('searchCtLogForProblem promise rejected.');
     }
-    
- 
-    if (foundString !== 'empty') {
-        resolve(foundString);
+  });
+}
+
+function readLineTime( lineTime, testStartDate){
+  return new Promise((resolve, reject) => {
+    let newTime = null;
+    try {
+      let foundFile = lineTime.split(' ');
+
+      //logger.debug(`foundFile: $${foundFile}`);
+      //logger.debug(`foundFile: $${foundFile[1]}`);
+      let foundFile2 = foundFile[0];
+      
+      //logger.debug(`foundFile2: $${foundFile2}`);
+      let foundFile3 = foundFile2.split('\t');
+      //logger.debug(`foundFile3: $${foundFile3}`);
+      let foundFile4 = foundFile3[4].split(':');  
+      //.debug(`foundFile4: $${foundFile4}`);
+      const splitSecMil = foundFile4[2].split('.'); 
+      //logger.debug(`splitSecMil: $${foundFile3}`);     
+      const buildNewDate = new Date(testStartDate.getFullYear(), testStartDate.getMonth(), testStartDate.getDay(), foundFile4[0], foundFile4[1], splitSecMil[0], splitSecMil[1]);
+      newTime = momentz.tz(buildNewDate, config.get('timeZone')).format('HH:mm:ss:SS'); 
+    } catch (error) {
+      logger.error(error.stack);
+    } 
+    if (newTime !== moment.invalid) {
+      resolve(newTime)
     } else {
-        reject('searchCtLogForProblem promise rejected.')
-    }
+      reject('readLineTime promise rejected');
+    } 
   });
 }
 async function renameCtlogFile() {
