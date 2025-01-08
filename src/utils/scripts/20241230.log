@@ -1,0 +1,3 @@
+SS	00	ERRO	GENRL	00:36:06.83	JT Crashed: Fatal Software Exception: ExitCode -805306369 [0xcfffffff]
+JT	03	INFO	GENRL	00:53:36.88	Starting init_MedOrderTable
+JT	05	INFO	DBASE	00:53:36.90	AdoHelperWrapper::ExecuteS
