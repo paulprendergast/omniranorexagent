@@ -13,6 +13,7 @@ const _ = require('lodash');
 const { morganMiddleware } = require("./src/middleware/morgan.middleware.cjs");
 const { logger } = require("./src/utils/logger.cjs");
 const { initRouter } = require('./routers/initRouter.cjs');
+const { allRouter } = require('./routers/allRouter.cjs');
 const { MongoClient } = require('mongodb');
 const { jobSchema } = require('./src/models/job.cjs');
 const { exceptions } = require('winston');
@@ -54,6 +55,7 @@ app.set('view engine', 'ejs');
 
 //connectionDB();
 app.use('/init', initRouter);
+app.use('/all', allRouter);
 
 app.get('/', (req, res) => {
     logger.info("Checking the API status: Everything is OK");

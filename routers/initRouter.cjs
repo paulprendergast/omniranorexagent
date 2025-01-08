@@ -1,6 +1,7 @@
 var config = require('config');
 const express = require('express');
 const initRouter = express.Router();
+//const allRouter = express.Router();
 const db = require('../src/utils/db.cjs');
 const utilities = require('../src/utils/utilities.cjs');
 const { logger } = require("../src/utils/logger.cjs");
@@ -9,7 +10,7 @@ const { default: mongoose } = require('mongoose');
 const { processStates } = require('../src/states/process.states.cjs');
 const { addTestJobToQueue } = require('../src/utils/queues.cjs');
 
-initRouter.route('/all')
+/* initRouter.route('/all')
 .get((req,res) => {
     (async function mongooseConnet(){
         await utilities.checkingDatabaseStatus('GET/all InitRouter.cjs');
@@ -24,7 +25,23 @@ initRouter.route('/all')
         }
 
     }()).catch( err => { logger.error(err);});
-});
+}).delete((req,res) => {
+    (async () => {
+        await utilities.checkingDatabaseStatus('DELETE/ALL InitRouter.cjs');
+        try {
+            
+            const jobModel = mongoose.model('Jobs', jobSchema);
+            await jobModel.deleteMany({});
+
+            logger.info('Deleted all Data in Job table');
+
+            res.status(200).end();
+        } catch (error) {
+            logger.error(error.stack);
+        }
+        
+    })().catch( err => { logger.error(err.stack);});
+}); */
 
 
 initRouter.route('/')
@@ -112,16 +129,20 @@ initRouter.route('/')
 
     }()).catch( err => { logger.error(err.stack);});
 
-}).delete((req, res) => {
+}).delete((req, res) => { //need to support for single item delete
 
     (async () => {
+        let foundJobId = req.query.jobId;
         await utilities.checkingDatabaseStatus('DELETE InitRouter.cjs');
         try {
                 const jobModel = mongoose.model('Jobs', jobSchema);
-                await jobModel.deleteMany({});
-           
-            
-            logger.info('Deleted all Data in Job table');
+                const filter = { jobId: foundJobId};
+                await jobModel.deleteOne(filter).then((result) => {
+                    console.info(`Deleted Data  in Job table.`);
+                  })
+                  .catch((err) => {
+                    console.error('Error deleting documents:', err);
+                  });
 
             res.status(200).end();
         } catch (error) {

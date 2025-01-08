@@ -9,11 +9,11 @@ import jobStopped from '../../fixtures/jobStopped.json';
 const { processStates } = require('../../../src/states/process.states.cjs');
 
 
-describe('Processing', () => {
+describe('Job Processing', () => {
 
     beforeEach(()=> {
         cy.task('deleteAllDirectories');
-        cy.request('DELETE','/init');
+        cy.request('DELETE','/all');
     });
 
     before(() => {
@@ -164,7 +164,7 @@ describe('Processing', () => {
         cy.wait(5000);
     });
 
-    it('Add HP1 and Add HP2 Immedately afterward HP1 finished HP2 does not start', () => {
+    it('Add HP1 and Add HP2 Immedately afterward HP1 finished HP2 does start and finishes', () => {
         
         cy.fixture('shortJob1').then((json) => {
             let newJob = json;
@@ -254,13 +254,35 @@ describe('Processing', () => {
         cy.getBySel('topResultRow0').should('be.visible').click();
         cy.getBySel('topResultRow0').should(($p) => {
             expect($p).to.contain('83eb7fdcfc7ee7c6f99b89cd');
-            expect($p).to.contain(processStates.NotStarted);
+            expect($p).to.contain(processStates.InProgress);
         });
         cy.getBySel('testResult0').eq(0).find('div').should($div => {
             expect($div.get(0).innerText).to.eq('TC21345');
             expect($div.get(1).innerText).to.eq(processStates.NotStarted);
             expect($div.get(2).innerText).to.be.oneOf([processStates.NotStarted]);
         });
+
+        cy.wait(100000);//3min test1
+        cy.visit('/');
+        cy.getBySel('topResultRow0').should('be.visible').click();
+        cy.getBySel('topResultRow0').should(($p) => {
+            expect($p).to.contain('83eb7fdcfc7ee7c6f99b89cd');
+            expect($p).to.contain(processStates.InProgress);
+        });
+        cy.getBySel('testResult0').eq(0).find('div').should($div => {
+            expect($div.get(0).innerText).to.eq('TC21345');
+            expect($div.get(1).innerText).to.eq(processStates.InProgress);
+            expect($div.get(2).innerText).to.be.oneOf([processStates.InProgress]);
+        });
+
+        cy.wait(90000);//1minute
+        cy.visit('/');
+        cy.getBySel('topResultRow1').should('be.visible').click();
+        cy.getBySel('topResultRow1').should(($p) => {
+            expect($p).to.contain('83eb7fdcfc7ee7c6f99b89cd');
+            expect($p).to.contain(processStates.Completed);
+        });
+        
         cy.wait(5000);
     });
 

@@ -14,6 +14,7 @@ const { psGetProcess } = require('./powershellTools.cjs');
 const { default: mongoose } = require('mongoose');
 const { resolve } = require('path');
 const { default: db } = require('./db.cjs');
+const retryCrashUtility = require('./retryCrashUtilities.cjs');
 
 function compareTestSet(tOld, tNew) {
     logger.debug(`old: ${JSON.stringify(tOld)}`);
@@ -214,9 +215,21 @@ function getCommandLineProcessId(jobId) {
       let minuteAfter =  decyferGetProcess(await psGetProcess());
       const testJobProcess = findRunningTestJobProcess(minuteAfter); 
       
-      // store processId in testJob in DB
       const formatNewDate = momentz.tz(testJobProcess.date, config.get('timeZone'));
-      const response = await dbUtilities.findAndUpdateJob(jobId, {process: {id: testJobProcess.id, init_date: formatNewDate} });
+      const foundJob = await dbUtilities.findJob(jobId);
+      let response = null;
+      // store processId in testJob in DB
+      if (foundJob.process.id === null && foundJob.process.init_date !== null) {
+        //for retryCrash to make history of previous process init_date to exist. but new process can be updated
+        //const formatProcessDate = momentz.tz(foundJob.process.init_date, config.get('timeZone'));
+        logger.debug(`RetryCrash startup: ${testJobProcess.id} : init_date:${foundJob.process.init_date} UTC: ${new Date(foundJob.process.init_date).toUTCString()}`);
+        response = await dbUtilities.findAndUpdateJob(jobId, {process: {id: testJobProcess.id, init_date: new Date(foundJob.process.init_date).toUTCString()} });
+      }
+      else {
+        logger.debug(`Normal startup: ${testJobProcess.id} : init_date:${formatNewDate}`);
+        response = await dbUtilities.findAndUpdateJob(jobId, {process: {id: testJobProcess.id, init_date: formatNewDate} });
+      }
+      
       if(response !== null || response !==''){
         resolve(response);
       }else{
@@ -267,23 +280,32 @@ async function watchFolderStatusAndUpdate(jobId, testJob) {
     try {
       const directoryData = await readDirectoryDataAndReturnMap();
       logger.debug([...directoryData.entries()]);
-      //Get Latest TestJob update from DB
-      //let dbJob = await dbUtilities.getJobFromDb(jobId);
+
       let dbJob = testJob
-      ///finds tests started after sim process date
+      ///finds tests started after sim process date.
+      // the init_date will come from new testJob or RetryCrash-TestJob
+      // the init_date allow function to find all directories come afterward.
       const dataAfterStartedProcess = await findTestsStartAfterTestProcess(dbJob.process.init_date, directoryData);
+      logger.debug(`dataAfterStartedProcess: ${dbJob.process.init_date}`);
       //which has status or no status.
+      //determines what folder has status  or no status
       const splitStatus = await splitTestStatus(dataAfterStartedProcess);
+
       //update status for TC  nostatus
+      //megerance splitStatus with DBJob. also reoders new result to match DBJob
       const results = await buildTestResult(splitStatus[0], splitStatus[1], dbJob.testGroup);
+
+      // compares DBjobs[0] to found results[1]
       const compareResults = compareTestSet(results[0], results[1]);
       const compareString = compareResults === true? 'Matched-true - tests are not updated to DB': 'UnMatched-false - tests are getting updated to DB';       
       logger.debug(`compareTest: ${compareString}`);
       //return count of TC that do not have status.
       // need to find if all test are complete
       if (results[0].length === results[1].length && !compareResults) {
-        if(await areAllTestsFinished(dataAfterStartedProcess, testJob)){
+        //areAllTestsFinished() validate all folders have a status to be completed.
+        if(await areAllTestsFinished(dataAfterStartedProcess, dbJob)){
           //Update JobId status = Complete
+          logger.debug("watchFolderStatusAndUpdate() work finished correctly");
           const completeNewDate = momentz.tz(Date.now(), config.get('timeZone'));
           await dbUtilities.findAndUpdateJob(jobId, { status: processStates.Completed, trans_date: completeNewDate, testGroup: results[1] });
         } else {
@@ -291,7 +313,7 @@ async function watchFolderStatusAndUpdate(jobId, testJob) {
           await dbUtilities.findAndUpdateJob(jobId,{testGroup: results[1]});
         } 
       }
-      if (!compareResults) { //change
+      if (!compareResults || compareResults) { //change
         resolve(compareString);
       } else { //no change
         reject('watchFolderStatusAndUpdate promise rejected')
@@ -334,23 +356,7 @@ function  checkingDatabaseStatus(location) {
   });
 }
 
-// status[status, workStatus]
-function updatingTestGroupStatus(index, status, testGroup) {
-  return new Promise( async (resolve, reject) => {
-    testGroup[index].status = status[0];
-    const completeNewDate = momentz.tz(Date.now(), config.get('timeZone'));
-    testGroup[index].finished_date = completeNewDate;
-    testGroup[index].workStatus = status[1];
-    //change status date
-    await dbUtilities.findAndUpdateJob(dbJobId.jobId, { trans_date: completeNewDate,  testGroup: testGroup }); 
-    if( testGroup.length === 1){
-      resolve();
-    }   
-    else {
-      reject('updatingTestGroupLengthOne Promise reject');
-    }   
-  });
-}
+
 
 function updateFolderBeforeProcessRetry(testGroup) {
   return new Promise ( async (resolve, reject) =>{
@@ -390,337 +396,7 @@ function updateFolderAfterProcessRetry(testGroupValue, dbJobId) {
   });
 }
 
-function buildSimulateRetryFolder(test){
-  return new Promise( async ( resolve, reject) => {
-    try {
-      const date = new Date(Date.now());
-      const newFolder = `${test}-${date.getHours()}-${date.getMinutes()}`;
-      let folderAbsolute = path.join(config.get('logWatcherPath'), newFolder);
-      await fsPromises.mkdir(folderAbsolute);
-      resolve();
-    } catch (error) {
-      logger.error(error.stack);
-      reject('buildSimulateRetryFolder promise rejected');
-    }
-  });
-}
 
-function buildNewNotStartedTestJobList(dbJobId) {
-  return new Promise(async (resolve, reject) => {
-    let newTestList = '';
-    let testGroup = await buildlTestGroupLiteralObject(dbJobId.testGroup);
-    for (let index = 0; index < testGroup.length; index++) {
-
-      if (testGroup[index].workStatus === processStates.NotStarted) { /// first in list. also the first minute
-
-        // if Simulate create folder.
-        const isSimulate = dbJobId.testmode.simulate ==='true'?true:false;
-        if(isSimulate){
-          await buildSimulateRetryFolder(testGroup[index].testId);
-        }
-        // search CT log for JT crashed and Rebooting
-        const foundProblem = await searchCtLogForProblem(testGroup[index].start_date, dbJobId.testmode.simulate);
-
-        if(foundProblem.includes('crash')) {
-          if (testGroup.length === 1) { // one test in testgroup
-            logger.debug(`First test status = Notstarted and testgroup == 1; newTestList =[] ; update test status = crash`);
-            await updatingTestGroupStatus(index, [processStates.Crash, processStates.Crashed], testGroup);
-            newTestList = [];
-           /*  testGroup[0].status = processStates.Crash;
-            const completeNewDate = momentz.tz(Date.now(), config.get('timeZone'));
-            testGroup[0].finished_date = completeNewDate;
-            testGroup[0].workStatus = processStates.Crashed
-            //change status date
-            await dbUtilities.findAndUpdateJob(dbJobId.jobId, { trans_date: completeNewDate,  testGroup: testGroup }); */
-            
-          } else { // many test in testgroup; in gap before not started and after last test status
-            logger.debug(`First test status = Notstarted and testgroup == many  ; newTestList =[shift to many] ; update test status = crash`);
-            
-            //what if the last test Crashed in the list
-            if (index === (testGroup.length - 1)) {
-              newTestList = []
-            } else {
-              newTestList = testGroup.shift();
-
-            }
-/*             testGroup[0].status = processStates.Crash;
-            const completeNewDate = momentz.tz(Date.now(), config.get('timeZone'));
-            testGroup[0].finished_date = completeNewDate;
-            testGroup[0].workStatus = processStates.Crashed
-            //change status date
-            await dbUtilities.findAndUpdateJob(dbJobId.jobId, { trans_date: completeNewDate,  testGroup: testGroup }); */
-            await updatingTestGroupStatus(index, [processStates.Crash, processStates.Crashed], testGroup);
-          }
-          
-          if(dbJobId.process.id ===  null) { // if process data does not exist in DBTestJob. need to go find folder.// change the name for folder to crash
-            logger.debug(`First test status = Notstarted; processId == Null; with first minute find latest test folder and give status = Crash`);
-            /* const listOfDirectories = await readDirectoryDataAndReturnMap();
-            let listOfFoundTests = new Map();
-            listOfDirectories.array.forEach((value, key, map) => {
-              if(key.includes(testGroup[index])) {
-                listOfFoundTests.set(key, value);
-              }
-            });
-            const finalSort = new Map([...listOfFoundTests.entries()].sort((a, b) => a[1].birthDate - b[1].birthDate));
-            const firstFolder = finalSort.entries().next().value;
-            await fsPromises.rename(firstFolder, `${firstFolder}-${processStates.Crash}`); */
-            await updateFolderBeforeProcessRetry(testGroup);
-  
-          } else { //else find TC folder after process start date. the date wil be in DB. // change the name for folder to crash
-            logger.debug(`First test status = Notstarted; processId == notNull; find test folder after process start date and give status = Crash`);
-/*             const listOfDirectories = await readDirectoryDataAndReturnMap();
-            const dataAfterStartedProcess = await findTestsStartAfterTestProcess(dbJobId.process.init_date, listOfDirectories);
-            if(dataAfterStartedProcess.has(testGroup[index])) {
-              const foundFolder = (dataAfterStartedProcess.get(testGroup[index])).test;
-              await fsPromises.rename(foundFolder, `${foundFolder}-${processStates.Crash}`);
-            } */
-            await updateFolderAfterProcessRetry(testGroup[index], dbJobId);
-            
-          } 
-          break; // work is done and tests found
-        } else { // this means that automation may cause crash.
-          logger.warn('Did not find crash; NotStarted; this means that automation may cause crash.');
-          if(testGroup.length === 1){ // one test in testgroup
-            logger.debug(`First test status = Notstarted and testgroup == 1; newTestList =[] ; update test status = Not Crash`);
-            newTestList = []
-            /* testGroup[0].status = `*${processStates.Fail}`;
-            const completeNewDate = momentz.tz(Date.now(), config.get('timeZone'));
-            testGroup[0].finished_date = completeNewDate;
-            testGroup[0].workStatus = processStates.Finished;
-            //change status date
-            await dbUtilities.findAndUpdateJob(dbJobId.jobId, { trans_date: completeNewDate,  testGroup: testGroup }); */
-            await updatingTestGroupStatus( index, ['*' + processStates.Fail, processStates.Finished], testGroup);
-          } else { // many test in testgroup
-
-            logger.debug(`First test status = Notstarted and testgroup == many  ; newTestList =[shift to many] ; update test status = Not Crash`);
-            newTestList = testGroup.shift();
-            /* testGroup[0].status = `*${processStates.Fail}`;
-            const completeNewDate = momentz.tz(Date.now(), config.get('timeZone'));
-            testGroup[0].finished_date = completeNewDate;
-            testGroup[0].workStatus = processStates.Finished
-            //change status date
-            await dbUtilities.findAndUpdateJob(dbJobId.jobId, { trans_date: completeNewDate,  testGroup: testGroup }); */
-            await updatingTestGroupStatus( index, ['*' + processStates.Fail, processStates.Finished], testGroup);
-          }
-
-          if(dbJobId.process.id ===  null){ // if process data does not exist in DBTestJob. need to go find folder.// change the name for folder to crash
-            logger.debug(`First test status = Notstarted; processId == Null; with first minute find latest test folder and give status = not Crash`);
-            await updateFolderBeforeProcessRetry(testGroup);
-          } else { //else find TC folder after process start date. the date wil be in DB. // change the name for folder to crash
-            logger.debug(`First test status = Notstarted; processId == notNull; find test folder after process start date and give status = not Crash`);
-            await updateFolderAfterProcessRetry(testGroup[index], dbJobId);
-          }
-        }
-
-        
-      
-      } else if (testGroup[index].workStatus === processStates.InProgress) { // test in list
-        
-        // if Simulate create folder.
-        const isSimulate = dbJobId.testmode.simulate ==='true'?true:false;
-        if(isSimulate){
-          await buildSimulateRetryFolder(testGroup[index].testId);
-        }
-        const foundProblem = await searchCtLogForProblem(testGroup[index].start_date, dbJobId.testmode.simulate);
-
-        if(foundProblem.includes('crash')) {
-          if(index === (testGroup.length - 1)) { ///last in list
-            newTestList = [];
-            //change status date
-            // copy over CT logs to test folder
-            break;
-          } else { //many in list
-            newTestList = testGroup.slice(index + 1, testGroup.length);
-            //change status date
-            // copy over CT logs to test folder
-            break;
-          }
-
-        } else { // this means that automation may cause crash.
-          logger.warn('Did not find crash; InProgress; this means that automation may cause crash.');
-          if(index === (testGroup.length - 1)) { ///last in list
-            newTestList = [];
-            //change status date
-            // copy over CT logs to test folder
-            break;
-          } else { //many in list
-            newTestList = testGroup.slice(index + 1, testGroup.length);
-            //change status date
-            // copy over CT logs to test folder
-            break;
-          }
-        }
-  
-      } //end of inProgress
-    } // end of loop
-    if(newTestList === '')
-      reject('buildNewNotStartedTestJobList Promose Rejected');
-    resolve(newTestList);
-  });
-}
-
-function buildlTestGroupLiteralObject(testgroup) {
-  return new Promise( (resolve, reject) => {
-    
-    let newObject = [];
-    for(const test of testgroup) {
-      newObject.push({
-        testId: test.testId,
-        start_date: test.start_date,
-        finished_date: test.finished_date,
-        workStatus: test.workStatus,
-        status: test.status
-      });
-    }
-    if(newObject.length > 0){
-      resolve(newObject);
-    } else {
-        reject('buildlTestGroupLiteralObject Promise rejected');
-    }
-  });
-}
-
-function searchCtLogForProblem(testStartDate, simulate) {
-  return new Promise( async (resolve, reject) => {
-    let foundString = 'empty';
-    const isSimulate = simulate === 'true'?true:false
-    try {
-      let newTestStartDate = new Date(testStartDate);
-      newTestStartDate = formatDate(newTestStartDate);
-      let newTime = null;
-      if (isSimulate) { // for simulator
-        //newTime = momentz.tz(testStartDate, config.get('timeZone')).format('HH:mm:ss:SS');
-        newTime = () => {
-          return new Promise( async (resolve, reject) => {
-            let foundFile = getFilesFromPath(config.get('CtLogFilePath'), '.log');
-            let exactFiles = [];
-            foundFile.forEach((s) => { //search for exactFiles by dateformat
-              if(s.includes(newTestStartDate)){
-                exactFiles.push(s);
-              }
-            });
-            
-            const dirPathFile = path.join(config.get('CtLogFilePath'), exactFiles[0]);
-            const fileStream = fs.createReadStream(dirPathFile);
-  
-            const rl = readline.createInterface({
-              input: fileStream,
-              crlfDelay: Infinity,
-            });
-            // Note: we use the crlfDelay option to recognize all instances of CR LF
-            // ('\r\n') in input.txt as a single line break.
-            let count = 0;
-            let foundLine = '';
-            for await (const line of rl) {
-              if (count === 4) {
-                foundFile = line.split(' ');
-                foundFile = foundFile[0];
-                foundFile = foundFile.split('\t');
-                foundFile = foundFile[4];
-                break;
-              }
-              count++;
-            }
-
-            rl.close();
-
-            if (foundFile.includes(':')) {
-              resolve(foundFile);
-            } else {
-              reject('searchCtLogForProblem sim newTime Promise Rejected');
-            }
- 
-          }); //promise
-        };
-
-        const foundTime = (await newTime()).split(':');
-        //new Date(year, monthIndex, day, hours, minutes, seconds, milliseconds)
-        const splitSecMil = foundTime[2].split('.');
-        const buildNewDate = new Date(testStartDate.getFullYear(), testStartDate.getMonth(), testStartDate.getDay(), foundTime[0], foundTime[1], splitSecMil[0], splitSecMil[1]);
-        newTime = momentz.tz(buildNewDate, config.get('timeZone')).format('HH:mm:ss:SS')
-      } else { // for non- simulator
-        newTime = momentz.tz(testStartDate, config.get('timeZone')).format('HH:mm:ss:SS');// folder create birthdate
-      }
-      //let newtime = momentz.tz(testStartDate, config.get('timeZone')).format('HH:mm:ss:SS')
-      logger.debug(`time: ${newTime}`);
-      
-      
-
-      let foundFile = getFilesFromPath(config.get('CtLogFilePath'), '.log');
-      let exactFiles = [];
-      foundFile.forEach((s) => { //search for exactFiles by dateformat
-        if(s.includes(newTestStartDate)){
-          exactFiles.push(s);
-        }
-      });
-      
-      for(const file of exactFiles) {
-        const dirPathFile = path.join(config.get('CtLogFilePath'), file);
-        logger.debug(`found CT log file: ${file}`);
-
-        const fileStream = fs.createReadStream(dirPathFile);
-  
-        const rl = readline.createInterface({
-          input: fileStream,
-          crlfDelay: Infinity,
-        });
-        // Note: we use the crlfDelay option to recognize all instances of CR LF
-        // ('\r\n') in input.txt as a single line break.
-        const logErrors = ['JT Crashed', 'Exception']
-        for await (const line of rl) {
-          // Each line in input.txt will be successively available here as `line`.
-          logger.debug(`line: ${line}`);
-          if ( await readLineTime(line, testStartDate) > newTime) {
-            if(line.includes(logErrors[0])){
-              foundString = 'crash';
-              break;
-            } 
-          }
-        }
-        rl.close();
-
-        if(foundString.includes('crash'))
-            break;
-      }
-      logger.info(`Finished searching CT log and found: ${foundString}`);
-      resolve(foundString);
-
-    } catch (error) {
-      logger.error(error.stack);
-      reject('searchCtLogForProblem promise rejected.');
-    }
-  });
-}
-
-function readLineTime( lineTime, testStartDate){
-  return new Promise((resolve, reject) => {
-    let newTime = null;
-    try {
-      let foundFile = lineTime.split(' ');
-
-      //logger.debug(`foundFile: $${foundFile}`);
-      //logger.debug(`foundFile: $${foundFile[1]}`);
-      let foundFile2 = foundFile[0];
-      
-      //logger.debug(`foundFile2: $${foundFile2}`);
-      let foundFile3 = foundFile2.split('\t');
-      //logger.debug(`foundFile3: $${foundFile3}`);
-      let foundFile4 = foundFile3[4].split(':');  
-      //.debug(`foundFile4: $${foundFile4}`);
-      const splitSecMil = foundFile4[2].split('.'); 
-      //logger.debug(`splitSecMil: $${foundFile3}`);     
-      const buildNewDate = new Date(testStartDate.getFullYear(), testStartDate.getMonth(), testStartDate.getDay(), foundFile4[0], foundFile4[1], splitSecMil[0], splitSecMil[1]);
-      newTime = momentz.tz(buildNewDate, config.get('timeZone')).format('HH:mm:ss:SS'); 
-    } catch (error) {
-      logger.error(error.stack);
-    } 
-    if (newTime !== moment.invalid) {
-      resolve(newTime)
-    } else {
-      reject('readLineTime promise rejected');
-    } 
-  });
-}
 async function renameCtlogFile() {
 
   let foundFile = getFilesFromPath(config.get('CtLogFilePath'), '.log');
@@ -728,6 +404,12 @@ async function renameCtlogFile() {
   let todaysDate = new Date(Date.now());
   todaysDate = formatDate(todaysDate);
   await fsPromises.rename(foundFile, path.join(config.get('CtLogFilePath'),`${todaysDate}.log`));
+
+  let foundFile2 = getFilesFromPath(config.get('CtLogFilePath'), '.txt');
+  foundFile2 = path.join(config.get('CtLogFilePath'), foundFile2[0]);
+  let todaysDate2 = new Date(Date.now());
+  todaysDate2 = formatDate(todaysDate2);
+  await fsPromises.rename(foundFile2, path.join(config.get('CtLogFilePath'),`test.${todaysDate2}.txt`));
 }
 
 function formatDate(date) {
@@ -773,6 +455,8 @@ function getFilesFromPath(path, extension) {
   return files.filter( file => file.match(new RegExp(`.*\.(${extension})`, 'ig')));
 }
 
+
+
 //after change remember to update exports
 module.exports.readDirectoryDataAndReturnMap = readDirectoryDataAndReturnMap;
 module.exports.compareTestSet = compareTestSet;
@@ -782,5 +466,4 @@ module.exports.buildTestResult = buildTestResult;
 module.exports.getCommandLineProcessId = getCommandLineProcessId;
 module.exports.watchFolderStatusAndUpdate =watchFolderStatusAndUpdate;
 module.exports.checkingDatabaseStatus = checkingDatabaseStatus;
-module.exports.buildNewNotStartedTestJobList = buildNewNotStartedTestJobList;
 module.exports.renameCtlogFile = renameCtlogFile;

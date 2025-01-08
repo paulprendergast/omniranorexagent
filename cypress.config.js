@@ -7,6 +7,7 @@ const { logger } = require("./src/utils/logger.cjs");
 const { spawn, exec } = require('node:child_process');
 const { psStartApp } = require('./src/utils/powershellTools.cjs');
 const { trusted } = require("mongoose");
+const { tryCatch } = require("bullmq");
 
 const PORT = config.get("AppPort") || 4051;
 
@@ -19,32 +20,53 @@ module.exports = defineConfig({
       // implement node event listeners here
       on('task', {
         deleteAllDirectories() {
-          return new Promise( (resolve, reject) => {
-            const logsFold = path.join(__dirname, './logs/');
-            const folders = fs.readdirSync(logsFold);
-            for(const f of folders){
-              const absolutePath = path.join(logsFold, f);
-              fs.lstat(absolutePath, (err, stats) => {
-                  if(err)
-                      return console.log(err);
           
-                  if(stats.isDirectory())
-                      fs.rmSync(absolutePath, {recursive: true, force: true});
-              }); 
-            }
-            for(const f of folders){
-              const absolutePath = path.join(logsFold, f);
-              fs.lstat(absolutePath, (err, stats) => {
-                  if(err)
-                      return console.log(err);
+          try{
+            return new Promise( (resolve, reject) => {
+              const logsFold = path.join(__dirname, './logs/');
+              const folders = fs.readdirSync(logsFold);
+              for(const f of folders){
+                const absolutePath = path.join(logsFold, f);
+                fs.lstat(absolutePath, (err, stats) => {
+                    if(err)
+                        return console.log(err);
+            
+                    if(stats.isDirectory())
+                        fs.rmSync(absolutePath, {recursive: true, force: true});
+                }); 
+              }
+              for(const f of folders){
+                const absolutePath = path.join(logsFold, f);
+                fs.lstat(absolutePath, (err, stats) => {
+                    if(err)
+                        return console.log(err);
+            
+                    if(stats.isFile())
+                        reject('deleteAllDirectories Promise Rejected');
+                }); 
+              }
+              resolve(true);
+            });
+          } catch(error) {
+            return `deleteAllDirectories has error: ${error}`;
+          }
+        },
+        countFiles(folderName) {
           
-                  if(stats.isFile())
-                      reject('deleteAllDirectories Promise Rejected');
-              }); 
-            }
-            resolve(true);
-          });
-        }, 
+          try {
+            return new Promise((resolve, reject) => {
+              fs.readdir(folderName, (err, files) => {
+                if (err) {
+                  return reject(err);
+                }
+  
+                resolve(files.length);
+              });
+            });
+          } catch (error) {
+            return `countFiles error: ${error}`;
+          }
+        }, // add new function here
       })
     },
   },

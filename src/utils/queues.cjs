@@ -13,6 +13,7 @@ const path = require('node:path');
 const fsPromises = require('node:fs/promises');
 const chokidar = require('chokidar');
 const observer = require('./observer.cjs');
+const retryCrashUtility = require('./retryCrashUtilities.cjs');
 const { jobSchema } = require('../models/job.cjs');
 const { Queue, Worker, tryCatch } = require("bullmq");
 const { psGetProcess, psSimulate } = require('./powershellTools.cjs');
@@ -95,14 +96,14 @@ async function obliterateJobsQueue(){
   logger.info('obliterate testJobQueue');
 }
 
-
+//already assume this is first time or continue job
 const testJob = async (job) => {
-  //already assume this is first time or continue job
+  
   logger.debug(`Top of TestJob function`);
   let watcher = new observer('./logs');
   await utilities.checkingDatabaseStatus('testJob.Queue.cjs');
   const jobId  = job.data.jobData.jobId;
-  logger.debug(`jobId: ${jobId}`)
+  logger.debug(`jobId: ${jobId}`);
   //let dbJobId='';
   let dbJobId = await dbUtilities.getJobFromDb(jobId);
   
@@ -115,11 +116,13 @@ const testJob = async (job) => {
   const jobStatusNotStarted  = dbJobId.status === processStates.NotStarted? true:false;
   const jobStatusInProgress  = dbJobId.status === processStates.InProgress? true:false;
 
-  watcher.watchFolder();
-  logger.debug(`jobStatusNotStarted = ${jobStatusNotStarted}`);
+  
+  
   try {
 
     if (jobStatusNotStarted) { //job status = NotStarted// starting new TestJob
+      logger.debug(`watcher = Open`);
+      watcher.watchFolder();
       logger.debug(`jobStatusNotStarted = true`);
       let testCollection = '';
       for (let index = 0; index < testGroup.length; index++) {     
@@ -154,13 +157,68 @@ const testJob = async (job) => {
       } catch (err) {
         logger.error(err.stack);
       } 
-    } else if(jobStatusInProgress) { //found job in queue will retry
+    } 
+    else if(jobStatusInProgress) { //found job in queue will retry
+        logger.debug(`jobStatusInProgress = ${jobStatusInProgress}`);
         logger.info("found process existed after crash");
 
         //find test InProgress.
-        const newList = await utilities.buildNewNotStartedTestJobList(dbJobId);
+        const newTestList = await retryCrashUtility.buildRetryTestJobList(dbJobId);
+        const foundJob = await dbUtilities.findJob(jobId);
+        //change the folder status support RTCTC and TC folders
+        await retryCrashUtility.updateCrashTestCaseFolder(foundJob, testmodeSimulate);
+        await retryCrashUtility.copyAllLatestLogFiles( foundJob);
 
-        
+        if(newTestList.length > 0) {
+
+          const formatNewDate = momentz.tz(Date.now(), config.get('timeZone'));
+          logger.debug(formatNewDate.toString());
+          
+          const formatProcessDate = momentz.tz(foundJob.process.init_date, config.get('timeZone'));
+
+          // process id=null for new processID to detech. init_date needs to use first process date to all track folders
+          // from the beginning of TestJob start time.
+          const process = {
+            "id": "",
+            "init_date": new Date(foundJob.process.init_date).toUTCString()
+          };
+          await dbUtilities.findAndUpdateJob(jobId, {
+            trans_date: formatNewDate,
+            process: process
+          });
+
+          logger.debug(`watcher = Open`);
+          watcher.watchFolder();
+          if (testmodeSimulate) {
+
+            let retryTestCollection = '';
+            for (let index = 0; index < newTestList.length; index++) {     
+              retryTestCollection += newTestList[index].testId + ',';      
+            } 
+            //trim last character
+            retryTestCollection = retryTestCollection.substring(0, retryTestCollection.length - 1);
+
+            const file = config.get('testmode.fileSimulater');
+            const timeout = config.get('testmode.testDurationTime');
+            const location = config.get('testmode.outputLocation');
+            const tests = `-testArray ${retryTestCollection}`;
+            logger.debug(`starting simulate: ${retryTestCollection}`);
+            await psSimulate(file, timeout, location, tests);
+            logger.debug(`finished simulate`); 
+          }
+          else {
+            logger.error('Simulator off not developed for retry.');
+          }
+
+
+        }
+        else {
+          const formatNewDate = momentz.tz(Date.now(), config.get('timeZone'));
+          await dbUtilities.findAndUpdateJob(jobId, {
+            status: processStates.Completed, 
+            trans_date: formatNewDate 
+          }); 
+        }
         
         //need to think when found Inprogress after crash what to do
   
@@ -170,6 +228,7 @@ const testJob = async (job) => {
     logger.error(error.stack);
   } finally {
 
+    logger.debug(`watcher = Close`);
     mongoose.connection.close();
     watcher.watchClose();
   }

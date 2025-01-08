@@ -61,6 +61,24 @@ function findAndUpdateJob(jobId, statusValue) {
     });
 }
 
+function findJob(jobId) {
+    return new Promise( async (resolve,reject) => {
+        try {
+            //await db();
+            const jobModel = mongoose.model('Jobs', jobSchema);
+            const filter = { jobId: jobId};
+            const response = await jobModel.findOne(filter);    
+            if(response !== null || response !==''){
+                resolve(response);
+            }else{
+                reject('findJob promise rejected');
+            }        
+        } catch (error) {
+            logger.error(error.stack);
+        }
+    });
+}
+
 
 function findInProgressTestJob() {
     return new Promise(async (resolve, reject) =>{
@@ -152,7 +170,8 @@ function getJobFromDb(jobId) {
 
    function checkingDatabaseStatusPlusAction(){
     return new Promise(async (resolve, reject) => {
-      const timer = 5000;
+      const timer = 3000;
+      logger.debug(`first found mongoose.connection.readyState = ${mongoose.connection.readyState}`);
       if(mongoose.connection.readyState === 0) {//disconnected
 
         await db();
@@ -163,7 +182,7 @@ function getJobFromDb(jobId) {
                 break;
             await db();
         } 
-        await node.setTimeout(timer);      
+        //await node.setTimeout(timer);      
         resolve(mongoose.connection.readyState ===1?true: false);
   
       } else if(mongoose.connection.readyState === 1) { // connected
@@ -190,9 +209,9 @@ function getJobFromDb(jobId) {
             await node.setTimeout(timer);
             if(mongoose.connection.readyState ===1?true: false)
                 break;
-            await db();
+            //await db();
         }
-        await node.setTimeout(timer);
+        //await node.setTimeout(timer);
         resolve(mongoose.connection.readyState ===1?true: false);
 
       }else if(mongoose.connection.readyState === 99) { // uninitized
@@ -217,3 +236,4 @@ module.exports.getJobFromDb = getJobFromDb;
 module.exports.findInProgressAndNotStartedTestJobs = findInProgressAndNotStartedTestJobs;
 module.exports.checkingDatabaseStatusPlusAction = checkingDatabaseStatusPlusAction;
 module.exports.updateCrashStatus = updateCrashStatus;
+module.exports.findJob = findJob;

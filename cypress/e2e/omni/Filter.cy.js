@@ -16,7 +16,7 @@ describe('Filter for the landing page',() => {
           this.setSeconds(this.getSeconds() + s);
           return this;
         }
-        cy.request('DELETE','/init');
+        cy.request('DELETE','/all');
       });
     before(() => {
         

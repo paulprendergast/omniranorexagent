@@ -17,27 +17,30 @@ class Observer extends EventEmitter {
     watchFolder() {
         try {
             this.watcher.on('addDir', async path => {
-                if (path.includes('TC')) {
+
+                //let newPath = path.split('/')[1];
+                //logger.debug(`newPath: ${newPath}`);
+                if(path.includes('RTCTC')){
+                  logger.debug(`WATCHER: Directory ${path} ignore`);
+                }
+                else if (path.includes('TC')) {
                   logger.info(`WATCHER: Directory ${path} has been added`);
                   //Get DB-TestJOb
                   //if first test matches DB-TestJob-First-Test, then start timeout-do for fetching Sim ProcessID
                   let testJob = await dbUtilities.findInProgressTestJob();
                   testJob = testJob.job;
+
                   const jobId = JSON.stringify(testJob.jobId).replace('\"','').replace('\"','');
-                  let foundTest = path.split('-');
-                  foundTest = foundTest[0];
-                  foundTest = foundTest.split('/');
-                  foundTest = foundTest[1];
-                  //
-                  
-                  if( testJob.process.id === null && foundTest === testJob.testGroup[0].testId
-                     && testJob.testGroup[0].workStatus === processStates.NotStarted){
-                      
-                      logger.info(`WATCHER: Finding ProcessId with manditory delay:  ${config.get('findPwshProcessDelay')/1000} sec.`);
-                      testJob = await utilities.getCommandLineProcessId(jobId);
-                      logger.info(`WATCHER: Finding and saving ProcessId = ${testJob.process.id}.`);
+
+                  // all this does is find the new processID and if retryCrash set init_date=firstProcessDate else new process date
+                  if( testJob.process.id === null){
+                     
+                     logger.info(`WATCHER: Finding ProcessId with manditory delay:  ${config.get('findPwshProcessDelay')/1000} sec.`);
+                     testJob = await utilities.getCommandLineProcessId(jobId);
+                     logger.info(`WATCHER: Finding and saving ProcessId = ${testJob.process.id}.`);
                   }
               
+                  logger.info(`WATCHER: Finding and saving ProcessId = ${testJob.process.id} && Init_date ${testJob.process.init_date}.`);
                   await utilities.watchFolderStatusAndUpdate(jobId, testJob);
                 }
               });

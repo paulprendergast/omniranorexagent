@@ -1,0 +1,50 @@
+[
+    {
+        "jobId":"55eb7fdcfc7ee7c6f99b869d",
+        "parentJobId": "55eb7fdcfc7ee7c6f99b869d",
+        "jobType": "Test",
+        "machineName":"LTAWSDIST193176",
+        "agentIp":"10.116.222.1",
+        "init_date": "2023-12-03T01:00:00.000+00:00",
+        "trans_date": "2023-12-03T06:00:00.000+00:00",
+        "status": "Completed",
+        "agentData": {
+            "testSuiteType": "OCCTDist",
+            "simulatorConfig":"AWS",
+            "simulatorPath":"c:\\Program Files (x86)\\OETS\\",
+            "omnicenterIp":"10.6.198.201",
+            "ctip":"10.6.196.88"
+        },
+        "process": {
+            "id": "",
+            "init_date": ""
+        },
+        "testmode": {
+            "enabled": "true",
+            "simulate": "false"
+        },
+        "testGroup": [
+            {
+                "testId":"TC12341",
+                "start_date": "2023-12-03T01:00:00.000+00:00",
+                "finished_date": "2023-12-03T06:00:00.000+00:00",
+                "workStatus": "Finished",
+                "status": "Pass"
+            },
+            {
+                "testId":"TC67891",
+                "start_date": "2023-12-03T01:00:00.000+00:00",
+                "finished_date": "2023-12-03T06:00:00.000+00:00",
+                "workStatus": "Finished",
+                "status": "Pass"
+            },
+            {
+                "testId":"TC13571",
+                "start_date": "2023-12-03T01:00:00.000+00:00",
+                "finished_date": "2023-12-03T06:00:00.000+00:00",
+                "workStatus": "Finished",
+                "status": "Fail"
+            }
+        ]
+    }
+]

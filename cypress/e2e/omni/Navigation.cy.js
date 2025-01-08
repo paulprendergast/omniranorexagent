@@ -7,7 +7,7 @@ const {processStates} = require('../../../src/states/process.states.cjs');
 describe('Navigation to Apis', () => {
 
     beforeEach(() => {
-      cy.request('DELETE','/init');
+      cy.request('DELETE','/all');
     });
     before(() => {
       /// File Default.json
@@ -24,23 +24,26 @@ describe('Navigation to Apis', () => {
     it('Visit to root', () => {
         cy.visit('/');
         cy.getBySel('header-title').should('contain','Omni Ranorex Agent'); 
+        cy.wait(500);
     });
 
     it('Main Screen will load slow because of DB needs to auto connect if no NotStarted or no InProgress TestJobs exist', () => {
       cy.visit('/');
       cy.getBySel('header-title').should('contain','Omni Ranorex Agent');
+      cy.wait(5000);
       cy.visit('/');
       cy.getBySel('header-title').should('contain','Omni Ranorex Agent');
+      cy.wait(500);
     });
 
     it('Perform Init DELETE and validate root page', () => {
-        cy.getBySel('accordion-header').should('not.exist');
+      cy.getBySel('accordion-header').should('not.exist');
     });
 
     it.skip('Perfrom Init DELETE verify Redirect', () => {
       cy.request({
           method: 'DELETE',  
-          url: '/init',
+          url: '/all',
           followRedirect: true, // turn on following redirects
       }).then((resp) => {
         // redirect status code is 302
@@ -49,7 +52,7 @@ describe('Navigation to Apis', () => {
       });
     });
 
-    it.skip('Perform Init multiple GETs and validate root page', () => {
+    it.skip('Perform Init multiple GETs and validate root page Redirect', () => {
         //cy.request('/init');
         cy.request({
           url: '/init',
@@ -67,7 +70,12 @@ describe('Navigation to Apis', () => {
     });
 
     it.skip('Perform Init GET and validate children tests exist', () => {
-        cy.request('/init');       
+      cy.fixture('job').then((json) => {
+        let newJob = json;       
+        newJob[0].status = processStates.NotStarted        
+        newJob[0].init_date = new Date(Date.now()).toUTCString();
+        cy.request('POST','/init', newJob );
+      });          
         cy.visit('/');
         cy.contains('div', 'Test Job:').should('be.visible').click();
         cy.getBySel('test-container').children().should('have.length', 4);
@@ -176,7 +184,7 @@ describe('Navigation to Apis', () => {
       //cy.getBySel('strongJobId').should('exist');
       //cy.getBySel('strongJobId').should('have.length', 1);
       //cy.getBySel('strongJobId').contains('26eb7fdcfc7ee7c6f99b869d');
-      cy.request('GET', '/init/all').then(res => {
+      cy.request('GET', '/all').then(res => {
         console.log('res.body');
         console.log(res);
         expect(Cypress._.find(res.body,'26eb7fdcfc7ee7c6f99b8691')).is.not.null;
@@ -204,6 +212,48 @@ describe('Navigation to Apis', () => {
       });       
       cy.visit('/');
       cy.getBySel('accordion-header').parent().find('h2').eq(0).contains(processStates.InProgress);
+    });
+
+    it('Delete single item', () => {  
+
+      cy.fixture('job').then((json) => {
+        let newJob = json;       
+        newJob[0].status = processStates.NotStarted        
+        newJob[0].init_date = new Date(Date.now()).toUTCString();
+        cy.request('POST','/init', newJob );
+      });
+
+      cy.visit('/');
+      cy.getBySel('strongJobId').should('exist');
+      cy.getBySel('strongJobId').should('have.length', 1);
+      cy.getBySel('strongJobId').contains('26eb7fdcfc7ee7c6f99b869d');
+      cy.request('DELETE', '/init/?jobId=26eb7fdcfc7ee7c6f99b869d');
+      cy.visit('/');
+      cy.getBySel('accordion-header').should('not.exist');
+    });
+
+    it('Delete all item', () => { 
+      cy.fixture('job').then((json) => {
+        let newJob = json;       
+        newJob[0].status = processStates.NotStarted        
+        newJob[0].init_date = new Date(Date.now()).toUTCString();
+        cy.request('POST','/init', newJob );
+      });
+
+      cy.fixture('job2').then((json) => {
+        let newJob = json;       
+        newJob[0].status = processStates.NotStarted        
+        newJob[0].init_date = new Date(Date.now()).toUTCString();
+        cy.request('POST','/init', newJob );
+      });
+
+      cy.visit('/');
+      cy.getBySel('strongJobId').contains('26eb7fdcfc7ee7c6f99b869d');
+      cy.getBySel('strongJobId').contains('55eb7fdcfc7ee7c6f99b869d');
+
+      cy.request('DELETE','/all');
+      cy.visit('/');
+      cy.getBySel('accordion-header').should('not.exist');
     });
 
   
