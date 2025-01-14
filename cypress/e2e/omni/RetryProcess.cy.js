@@ -5,6 +5,7 @@ import retryInprogressLastTest from '../../fixtures/retryInprogressLastTest.json
 import retryCrashInMiddle from '../../fixtures/retryCrashInMiddle.json';
 import retryCrashTwoCrashesInFront from '../../fixtures/retryCrashTwoCrashesInFront.json';
 import retryCrashMultipleCrash from '../../fixtures/retryCrashMultipleCrash.json';
+//import { pathExists } from 'fs-extra';
 const { processStates } = require('../../../src/states/process.states.cjs');
 
 
@@ -38,10 +39,18 @@ describe('Retry test Processing', () => {
             let newJob = json;
             newJob[0].init_date = new Date(Date.now()).toUTCString();
             //Test's Init_date is set time before crash date inth Files/*log file. or test will not work.
-            cy.request('POST','/init', newJob );
+            cy.request('POST','/init', newJob ).then(() => {
+                cy.wait(10000);
+                cy.task('returnLogFolderItems').then((things) => { 
+
+                    const foundFolder = things[things.length -1].name;
+                    expect(foundFolder).to.contain("TC13345");
+                    expect(foundFolder).to.contain("Crash");
+                    expect(things.length).to.eq(1);
+                });
+            });
         });
 
-        cy.wait(10000);
         cy.visit('/');
 
         cy.getBySel('topResultRow0').should('be.visible').click();
@@ -49,10 +58,12 @@ describe('Retry test Processing', () => {
             expect($p).to.contain('83eb7fdcfc7ee7c6f99b8610');
             expect($p).to.contain(processStates.Completed);
         });
+
         cy.getBySel('testResult0').find('div').should($div => {
             expect($div.get(0).innerText).to.eq('TC13345');
             expect($div.get(1).innerText).to.eq(processStates.Finished);
             expect($div.get(2).innerText).to.be.oneOf([processStates.Crash]);
+
         });
 
     });
@@ -62,7 +73,16 @@ describe('Retry test Processing', () => {
             let newJob = json;
             newJob[0].init_date = new Date(Date.now()).toUTCString();
             //Test's Init_date is set time before crash date inth Files/*log file. or test will not work.
-            cy.request('POST','/init', newJob );
+            cy.request('POST','/init', newJob ).then(() => {
+                cy.wait(10000);
+                cy.task('returnLogFolderItems').then((things) => { 
+
+                    const foundFolder = things[things.length -1].name;
+                    expect(foundFolder).to.contain("TC13345");
+                    expect(foundFolder).to.contain("Crash");
+                    expect(things.length).to.eq(1);
+                });
+            });;
         });
 
         cy.wait(10000);
@@ -85,7 +105,19 @@ describe('Retry test Processing', () => {
             let newJob = json;
             newJob[0].init_date = new Date(Date.now()).toUTCString();
             //Test's Init_date is set time before crash date inth Files/*log file. or test will not work.
-            cy.request('POST','/init', newJob );
+            cy.request('POST','/init', newJob ).then(() => {
+                cy.wait(10000);
+                cy.task('returnLogFolderItems').then((things) => { 
+
+                    const foundFolder = things[things.length -1].name;
+                    expect(foundFolder).to.eq("TC13347-0-22-Crash");
+                    expect(things.length).to.eq(3);
+
+                    cy.task('countFiles', 'TC13347-0-22-Crash').then((files) => {
+                        expect(files.length).to.eq(1);
+                    });
+                });
+            });
         });
 
         cy.wait(10000);
@@ -125,10 +157,21 @@ describe('Retry test Processing', () => {
             newJob[0].testGroup[0].start_date = new Date(todayDate.getFullYear(), todayDate.getMonth(), todayDate.getDay(),0,11,0,0).toUTCString();
             newJob[0].testGroup[0].finished_date = new Date(todayDate.getFullYear(), todayDate.getMonth(), todayDate.getDay(),0,20,0,0).toUTCString();
             newJob[0].testGroup[1].start_date = new Date(todayDate.getFullYear(), todayDate.getMonth(), todayDate.getDay(),0,22,0,0).toUTCString();
-            cy.request('POST','/init', newJob );
+            cy.request('POST','/init', newJob ).then(() => {
+                cy.wait(10000);
+                cy.task('returnLogFolderItems').then((things) => { 
+
+                    const foundFolder = things[things.length -1].name;
+                    expect(foundFolder).to.eq("TC13346-0-22-Crash");
+                    expect(things.length).to.eq(2);
+
+                    cy.task('countFiles', 'TC13346-0-22-Crash').then((files) => {
+                        expect(files.length).to.eq(1);
+                    });
+                });
+            });
         });
 
-        cy.wait(10000);
         cy.visit('/');
 
         cy.getBySel('topResultRow0').should('be.visible').click();
@@ -257,10 +300,22 @@ describe('Retry test Processing', () => {
             newJob[0].testGroup[0].start_date = new Date(todayDate.getFullYear(), todayDate.getMonth(), todayDate.getDay(),0,11,0,0).toUTCString();
             newJob[0].testGroup[0].finished_date = new Date(todayDate.getFullYear(), todayDate.getMonth(), todayDate.getDay(),0,20,0,0).toUTCString();
             newJob[0].testGroup[1].start_date = new Date(todayDate.getFullYear(), todayDate.getMonth(), todayDate.getDay(),0,22,0,0).toUTCString();
-            cy.request('POST','/init', newJob );
+            cy.request('POST','/init', newJob ).then(() => {
+                cy.wait(10000);
+                cy.task('returnLogFolderItems').then((things) => { 
+
+                    const foundFolder = things[things.length -1].name;
+                    expect(foundFolder).to.eq("TC13346-0-22-Crash");
+                    expect(things.length).to.eq(2);
+
+                    cy.task('countFiles', 'TC13346-0-22-Crash').then((files) => {
+                        expect(files.length).to.eq(1);
+                    });
+                });
+            });
         });
 
-        cy.wait(10000);
+
         cy.visit('/');
 
         cy.getBySel('topResultRow0').should('be.visible').click();
@@ -391,10 +446,22 @@ describe('Retry test Processing', () => {
             newJob[0].testGroup[1].start_date = new Date(todayDate.getFullYear(), todayDate.getMonth(), todayDate.getDay(),0,15,0,0).toUTCString();
             newJob[0].testGroup[1].finished_date = new Date(todayDate.getFullYear(), todayDate.getMonth(), todayDate.getDay(),0,18,0,0).toUTCString();
             newJob[0].testGroup[2].start_date = new Date(todayDate.getFullYear(), todayDate.getMonth(), todayDate.getDay(),0,22,0,0).toUTCString();
-            cy.request('POST','/init', newJob );
+            cy.request('POST','/init', newJob ).then(() => {
+                cy.wait(10000);
+                cy.task('returnLogFolderItems').then((things) => { 
+
+                    const foundFolder = things[things.length -1].name;
+                    expect(foundFolder).to.eq("TC13347-0-22-Crash");
+                    expect(things.length).to.eq(3);
+
+                    cy.task('countFiles', 'TC13347-0-22-Crash').then((files) => {
+                        expect(files.length).to.eq(1);
+                    });
+                });
+            });
         });
 
-        cy.wait(10000);
+        //cy.wait(10000);
         cy.visit('/');
 
         cy.getBySel('topResultRow0').should('be.visible').click();
@@ -412,6 +479,7 @@ describe('Retry test Processing', () => {
             expect($div.get(1).innerText).to.eq(processStates.Finished);
             expect($div.get(2).innerText).to.be.oneOf([processStates.Fail]);
         });
+
         cy.getBySel('testResult2').find('div').should($div => {
             expect($div.get(0).innerText).to.eq('TC13347');
             expect($div.get(1).innerText).to.eq(processStates.Finished);

@@ -9,6 +9,7 @@ const { psStartApp } = require('./src/utils/powershellTools.cjs');
 const { trusted } = require("mongoose");
 const { tryCatch } = require("bullmq");
 
+
 const PORT = config.get("AppPort") || 4051;
 
 module.exports = defineConfig({
@@ -51,22 +52,37 @@ module.exports = defineConfig({
             return `deleteAllDirectories has error: ${error}`;
           }
         },
-        countFiles(folderName) {
-          
-          try {
-            return new Promise((resolve, reject) => {
-              fs.readdir(folderName, (err, files) => {
-                if (err) {
-                  return reject(err);
+        returnLogFolderItems(){
+          return new Promise((resolve, reject) => {
+            try {
+              let found =[];
+              const logsFold = path.join(__dirname, './logs/');
+              const dirents  = fs.readdirSync(logsFold, { withFileTypes: true });
+
+              dirents.forEach((item) => {
+                if(item.isDirectory())
+                {
+                  found.push(item);
                 }
-  
-                resolve(files.length);
               });
-            });
-          } catch (error) {
-            return `countFiles error: ${error}`;
-          }
-        }, // add new function here
+              resolve(found);
+            } catch(error) {
+              return `returnLogFolderItems has error: ${error}`
+            }
+          });
+        },
+        countFiles(folderName){
+          return new Promise((resolve, reject) => {
+            try{
+              const logsFold = path.join(__dirname, './logs');
+              const folder = path.join(logsFold, folderName);
+              const files = fs.readdirSync(folder, { withFileTypes: true });
+              resolve(files);
+            } catch(error) {
+              return `countFiles has error: ${error}`
+            }
+          });
+        },
       })
     },
   },

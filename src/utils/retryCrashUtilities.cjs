@@ -148,8 +148,11 @@ function copyAllLatestLogFiles( foundJob) {
       const DestDir = path.join(config.get('logWatcherPath2'), testMatchDir.test); 
       const logDir = config.get('CtLogFilePath');
       //copy all newest files to Dir
+     
       const files = fs.readdirSync( logDir );
-      files.forEach(async file =>{
+      const extension = '.log';
+      const filterFiles = files.filter( file => file.match(new RegExp(`.*\.(${extension})`, 'ig')));
+      filterFiles.forEach(async file =>{
         const filePath = path.join(logDir, file);
         const dest = path.join(DestDir, file);
         const stat = fs.statSync(filePath);
